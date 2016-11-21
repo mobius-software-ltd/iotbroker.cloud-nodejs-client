@@ -18,5 +18,8 @@
   "bugs": {
     "url": "https://github.com/mobius-software-ltd/iotbroker.cloud-nodejs-client/issues"
   },
-  "homepage": "https://github.com/mobius-software-ltd/iotbroker.cloud-nodejs-client#readme"
+  "homepage": "https://github.com/mobius-software-ltd/iotbroker.cloud-nodejs-client#readme",
+  "dependencies": {
+    "express": "^4.14.0"
+  }
 }
