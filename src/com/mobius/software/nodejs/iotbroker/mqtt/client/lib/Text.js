@@ -1,4 +1,5 @@
 'use strict'
+// var Text = require('./lib/Text');
 
 function Text() {
     //reference on the local buffer
