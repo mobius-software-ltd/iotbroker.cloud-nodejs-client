@@ -5,14 +5,20 @@ var ENUM = require('./lib/enum');
 var Connack = require('./lib/Connack');
 var Connect = require('./lib/Connect');
 var Disconnect = require('./lib/Disconnect');
+var LengthDetails = require('./lib/LengthDetails');
 var Pingreq = require('./lib/Pingreq');
 var Pingresp = require('./lib/Pingresp');
+var Puback = require('./lib/Puback');
 var Pubcomp = require('./lib/Pubcomp');
+var Publish = require('./lib/Publish');
 var Pubrec = require('./lib/Pubrec');
 var Pubrel = require('./lib/Pubrel');
-var LengthDetails = require('./lib/LengthDetails');
+var Suback = require('./lib/Suback');
+var Subscribe = require('./lib/Subscribe');
 var Text = require('./lib/Text');
-var Publish = require('./lib/Publish');
+var Topic = require('./lib/Topic');
+var Unsuback = require('./lib/Unsuback');
+var Unsubscribe = require('./lib/Unsubscribe');
 var Will = require('./lib/Will');
 
 // console.log(ENUM.QoS.AT_MOST_ONCE);
@@ -236,16 +242,19 @@ function decode(buf) {
             // console.log('CONNACK', index, sessionPresentValue)
 
             if (sessionPresentValue != 0 && sessionPresentValue != 1)
-                throw new Error("CONNACK, session-present set to " + sessionPresentValue & 0xff);
+                throw new Error("CONNACK, session-present set to " + (sessionPresentValue & 0xff));
             var isPresent = sessionPresentValue == 1 ? true : false;
 
             var connackByte = buf.readUInt8(index);
             index += 1;
-
             var connackCode = ENUM.getKeyByValue(ENUM.ConnackCode, connackByte);
+            // console.log('connackByte', connackCode);
             if (connackCode == null)
                 throw new Error("Invalid connack code: " + connackByte);
-            header = Connack(isPresent, connackCode);
+            header = Connack({
+                sessionPresent: isPresent,
+                returnCode: connackCode
+            });
             break;
 
         case ENUM.MessageType.PUBLISH:
@@ -406,8 +415,8 @@ function decode(buf) {
     // if (buf.isReadable())
     //     throw new Error("unexpected bytes in content");
 
-    if (length.getLength() != header.getLength())
-        throw new Error(String.format("Invalid length. Encoded: %d, actual: %d", length.getLength(), header.getLength()));
+    // if (length.getLength() != header.getLength())
+    // throw new Error("Invalid length. Encoded: " + length.getLength() + ", actual: " + header.getLength());
 
     return header;
     // }catch (e) {
@@ -478,7 +487,7 @@ function encode(header) {
 
         case ENUM.MessageType.CONNACK:
             var connack = header;
-            index = buf.writeUInt8((type << 4), 0);
+            buf.writeUInt8((type << 4), 0);
             index = buf.writeUInt8(connack.isSessionPresent(), index);
             index = buf.writeUInt8(connack.getReturnCode().getNum(), index);
             break;
@@ -492,7 +501,7 @@ function encode(header) {
             buf.writeUInt8(firstByte, 0);
             // console.log('buf:', buf);
             // console.log('index:', index);
-            index = buf.writeUInt16BE(publish.getTopic().length, index);
+            index = buf.writeUInt16BE(publish.getTopic().getLength(), index);
             index += buf.write(publish.getTopic().getName().toString(), index);
             // console.log(!!publish.getPacketID());
             switch (publish.getTopic().getQos()) {
@@ -514,31 +523,31 @@ function encode(header) {
 
         case ENUM.MessageType.PUBACK:
             var puback = header;
-            index = buf.writeUInt8((type << 4), 0);
+            buf.writeUInt8((type << 4), 0);
             index = buf.writeUInt16BE(puback.getPacketID(), index);
             break;
 
         case ENUM.MessageType.PUBREC:
             var pubrec = header;
-            index = buf.writeUInt8((type << 4), 0);
+            buf.writeUInt8((type << 4), 0);
             index = buf.writeUInt16BE(pubrec.getPacketID(), index);
             break;
 
         case ENUM.MessageType.PUBREL:
             var pubrel = header;
-            index = buf.writeUInt8(((type << 4) | 0x2), 0);
+            buf.writeUInt8(((type << 4) | 0x2), 0);
             index = buf.writeUInt16BE(pubrel.getPacketID(), index);
             break;
 
         case ENUM.MessageType.PUBCOMP:
             var pubcomp = header;
-            index = buf.writeUInt8((type << 4), 0);
+            buf.writeUInt8((type << 4), 0);
             index = buf.writeUInt16BE(pubcomp.getPacketID(), index);
             break;
 
         case ENUM.MessageType.SUBSCRIBE:
             var sub = header;
-            index = buf.writeUInt8(((type << 4) | 0x2), 0);
+            buf.writeUInt8(((type << 4) | 0x2), 0);
             if (!!sub.getPacketID())
                 index = buf.writeUInt16BE(sub.getPacketID(), index);
             var topics = sub.getTopics()
@@ -551,7 +560,7 @@ function encode(header) {
 
         case ENUM.MessageType.SUBACK:
             var suback = header;
-            index = buf.writeUInt8((type << 4), 0);
+            buf.writeUInt8((type << 4), 0);
             index = buf.writeUInt16BE(suback.getPacketID(), index);
             var codes = suback.getReturnCodes()
             for (var i = 0; i < codes.length; i++) {
@@ -561,25 +570,25 @@ function encode(header) {
 
         case ENUM.MessageType.UNSUBSCRIBE:
             var unsub = header;
-            index = buf.writeUInt8(((type << 4) | 0x2), 0);
+            buf.writeUInt8(((type << 4) | 0x2), 0);
             index = buf.writeUInt16BE(unsub.getPacketID(), index);
             var topics = unsub.getTopics()
             for (var i = 0; i < topics.length; i++) {
-                index = buf.writeUInt16BE(topic.getLength(), index);
-                index += buf.write(topic.toString(), index);
+                index = buf.writeUInt16BE(topics[i].length, index);
+                index += buf.write(topics[i].toString(), index);
             }
             break;
 
         case ENUM.MessageType.UNSUBACK:
             var unsuback = header;
-            index = buf.writeUInt8((type << 4), 0);
+            buf.writeUInt8((type << 4), 0);
             index = buf.writeUInt16BE(unsuback.getPacketID(), index);
             break;
 
         case ENUM.MessageType.DISCONNECT:
         case ENUM.MessageType.PINGREQ:
         case ENUM.MessageType.PINGRESP:
-            index = buf.writeUInt8((type << 4), 0);
+            buf.writeUInt8((type << 4), 0);
             // console.log(buf, index);
             break;
 
@@ -635,4 +644,5 @@ function getBuffer(length) {
 }
 // console.log(MQParser.getBuffer(127));
 
+// console.log(MQParser.decode(MQParser.encode(Pubcomp(100))).getType());
 module.exports = MQParser;

@@ -37,6 +37,13 @@ function ENUM() {
             ACCEPTED_QOS2: 2,
             FAILURE: 128
         },
+        PingStatus: {
+            NEW: 0,
+            INITIALIZED: 1,
+            SENT: 2,
+            RECEIVED: 3,
+            LOST: 4
+        },
 
         getKeyByValue: function(obj, value) {
             for (var prop in obj) {

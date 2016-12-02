@@ -1,105 +1,185 @@
 "use strict";
 
 var express = require('express');
+var bodyParser = require('body-parser');
 var mqtt = require('../client/mqtt');
 var MQParser = require('../client/MQParser');
-// var ENUM = require('../client/lib/enum');
 var net = require('net');
+var Datastore = require('nedb');
+const cluster = require('cluster');
+const numCPUs = require('os').cpus().length;
 
-var app = express();
-
-var connection = new net.Socket();
-connection.on('data', function(data) {
-    console.log('Received: ', data);
+// if (!!cluster.worker)
+//     console.log(cluster.worker.id);
+var worker = [];
+cluster.on('message', function(worker, msg) {
+    if (msg.msg == 'connect') {
+        console.log('cluster socket event received');
+        Object.keys(cluster.workers).forEach(function(id) {
+            cluster.workers[id].send(msg);
+        });
+    }
 });
 
-connection.on('close', function() {
-    console.log('Connection closed');
-});
+if (cluster.isMaster) {
+    // Fork workers.
+    for (var i = 0; i < numCPUs; i++) {
+        worker[i] = cluster.fork();
+    }
 
-
-app.post('/connect', function onConnect(req, res) {
-    var CLIENT = new mqtt();
-    var connect = CLIENT.Connect({
-        username: "firstTestAccount@foo.bar",
-        password: "firstTestAccountPassword",
-        clientID: "_123456789",
-        isClean: true,
-        keepalive: 60,
-        will: CLIENT.Will(CLIENT.Topic(CLIENT.Text("lookup"), CLIENT.ENUM.QoS.AT_LEAST_ONCE), Buffer.from("John: i'll be back"), true)
+    cluster.on('exit', function(worker, code, signal) {
+        console.log(`worker ${worker.process.pid} died`);
     });
-    var parser = CLIENT.MQParser;
-    var enc = parser.encode(connect);
-
-    connection.connect(1883, '172.21.0.252', function connectionCallback() {
-        console.log('Connected!');
-        connection.write(enc);
-        console.log("Sent data: ", enc);
-    });
-
-
-    connection.on('error', function(error) {
-        console.log('Error: ', error);
-        connection.destroy();
-        res.send(JSON.stringify(error));
+} else {
+    var db = new Datastore({ filename: 'mqttData' });
+    var app = express();
+    app.use(bodyParser.json());
+    process.on('message', function(msg) {
+        if (msg.msg == 'connect') {
+            CLIENT.NewSocket({
+                host: '172.21.0.252',
+                port: 1883,
+                id: cluster.worker.id
+            });
+            // console.log('message from master to:', cluster.worker.id);
+        }
     });
 
-    connection.once('data', function(data) {
-        var parser = CLIENT.MQParser;
-        res.send(JSON.stringify(data));
-        var decoded = parser.decode(data);
-        // console.log('decoded:', decoded.getType());
+    app.listen('8888', function() {
+        console.log('app is running on port 8888');
     });
-
-});
-
-app.post('/disconnect', function onDisconnect(req, res) {
 
     var CLIENT = new mqtt();
-    var disconnect = CLIENT.Disconnect();
-    var enc = parser.encode(disconnect);
 
-    connection.write(enc);
-    console.log("Sent data: ", enc);
+    app.get('/test', function(req, res) {
+        // console.log(cluster.worker.id);
+        res.send(cluster.worker.id.toString());
+    });
 
-    // connection.once('data', function(data) {
-    res.end();
+    // CLIENT.on('ping', function() {
+    //     db.loadDatabase();
+    //     db.find({ type: 'state' }, function(err, docs) {
+    //         console.log(cluster.worker.id.toString());
+    //         db.remove({ type: 'state' }, {});
+    //         db.insert({
+    //             type: 'state',
+    //             state: 'ok'
+    //         });
+    //     });
+    //     console.log('ping event emitted');
     // });
-});
 
-app.post('/pingreq', function onPingreq(req, res) {
+    CLIENT.on('publish', function onPublisReceived() {
+        console.log('Publish event ClusterWorkerID', cluster.worker.id);
+    })
 
-    var CLIENT = new mqtt();
-    // console.log(CLIENT.ENUM.getKeyByValue(CLIENT.ENUM.MessageType, 2));
-    var pingreq = CLIENT.Pingreq();
-    var parser = CLIENT.MQParser;
-    var enc = parser.encode(pingreq);
+    app.post('/connect', function onConnect(req, res) {
+        process.send({ msg: 'connect' });
+        db.loadDatabase();
 
-    connection.write(enc);
+        CLIENT.on('connected', function() {
+            res.send('Connected');
+        });
 
-    connection.once('data', function(data) {
-        res.send(JSON.stringify((parser.decode(data)).getType()));
+        db.insert({
+            type: 'connection',
+            connection: {
+                host: '172.21.0.252',
+                port: 1883,
+                username: "firstTestAccount@foo.bar",
+                password: "firstTestAccountPassword",
+                clientID: "_123456780",
+                isClean: true,
+                keepalive: 30,
+                will: {
+                    topic: "lookup",
+                    content: "John: i'll be back",
+                    qos: CLIENT.ENUM.QoS.AT_LEAST_ONCE,
+                    retain: true
+                }
+            }
+        });
+        db.find({ type: 'connection' }, function(err, docs) {
+            // console.log(cluster.worker.id);
+            // console.log(cluster.worker.id, docs[docs.length - 1].connection);
+            // res.send(docs);
+            db.remove({ type: 'connection' }, {});
+        });
+        // console.log(CLIENT);
+        var connect = CLIENT.Connect({
+            host: '172.21.0.252',
+            port: 1883,
+            username: "firstTestAccount@foo.bar",
+            password: "firstTestAccountPassword",
+            clientID: "_123456780",
+            isClean: true,
+            keepalive: 10,
+            will: {
+                topic: "lookup",
+                content: "John: i'll be back",
+                qos: CLIENT.ENUM.QoS.AT_LEAST_ONCE,
+                retain: true
+            }
+        });
     });
-    // res.send(JSON.stringify(enc));
-});
 
-app.post('/publish', function onPublish(req, res) {
-    var CLIENT = new mqtt();
-    var parser = CLIENT.MQParser;
-    var content = Buffer.from([0x48, 0x65, 0x6c, 0x6c, 0x6f, 0x20, 0x77, 0x6f, 0x72, 0x6c, 0x64]);
-    var publishData = CLIENT.Publish(100, CLIENT.Topic(CLIENT.Text("new_topic"), CLIENT.ENUM.QoS.EXACTLY_ONCE), content, true, true);
-    var enc = parser.encode(publishData);
-
-    console.log("Sent data: ", enc);
-    // console.log(enc.toString('utf8'));
-    connection.write(enc);
-
-    connection.once('data', function(data) {
-        console.log(data);
-        res.send(JSON.stringify((parser.decode(data)).getType()));
+    app.post('/disconnect', function onDisconnect(req, res) {
+        CLIENT.once('disconnect', function() {
+            CLIENT.removeAllListeners();
+            res.send('disconnect received');
+        });
+        CLIENT.Disconnect();
     });
-})
 
-app.listen('8888', function() {
-    console.log('app is running on port 8888');
-})
+    app.post('/subscribe', function onSubscribe(req, res) {
+        console.log('Subscribe ClusterWorkerID', cluster.worker.id);
+
+        console.log(req.body.topics);
+        CLIENT.Subscribe({
+            topics: req.body.topics,
+        });
+        CLIENT.once('suback', function() {
+            res.send('suback received');
+        });
+    });
+
+
+    app.post('/unsubscribe', function onSubscribe(req, res) {
+        console.log(req.body);
+        CLIENT.Unsubscribe({
+            topics: Array.from(req.body.topics),
+        });
+        CLIENT.once('unsuback', function() {
+            CLIENT.removeAllListeners();
+            res.send('unsuback received');
+        });
+    });
+
+    app.post('/publish', function onPublish(req, res) {
+        // console.log('body:', req.body);
+        CLIENT.once('pubrec', function() {
+            CLIENT.removeAllListeners();
+            res.send('pubrec received');
+        });
+        CLIENT.once('puback', function() {
+            CLIENT.removeAllListeners();
+            res.send('puback received');
+        });
+        CLIENT.once('pubcomp', function() {
+            CLIENT.removeAllListeners();
+            res.send('pubcomp received');
+        });
+
+        CLIENT.Publish({
+            topic: req.body.topic,
+            qos: parseInt(req.body.qos),
+            content: req.body.content,
+            retain: JSON.parse(req.body.retain),
+            isDupe: JSON.parse(req.body.isDupe)
+        })
+    })
+
+    // app.listen('8888', function() {
+    //     console.log('app is running on port 8888');
+    // })
+}

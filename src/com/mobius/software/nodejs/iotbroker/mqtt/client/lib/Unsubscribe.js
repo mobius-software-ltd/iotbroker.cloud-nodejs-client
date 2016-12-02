@@ -23,7 +23,7 @@ function Unsubscribe() {
         getLength: function() {
             var length = 2;
             for (var i = 0; i < topics.length; i++) {
-                length += topics[i].length() + 2;
+                length += topics[i].length + 2;
             }
             return length;
         },

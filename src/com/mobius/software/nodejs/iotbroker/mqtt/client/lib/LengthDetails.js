@@ -1,8 +1,8 @@
 'use strict'
 
-function LengthDetails() {
-    var length;
-    var size;
+function LengthDetails(newLength, newSize) {
+    var length = newLength || 0;
+    var size = newSize || 0;
 
     return {
         LengthDetails: function(newLength, newSize) {

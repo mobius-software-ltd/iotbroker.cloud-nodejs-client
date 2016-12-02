@@ -10,8 +10,10 @@ function Publish(newPacketID, newTopic, newContent, newRetain, newDup) {
 
     if (arguments.length == 4)
         reInit(null, newTopic, newContent, newRetain, newDup);
-    if (arguments.length == 5)
+    else if (arguments.length == 5)
         reInit(newPacketID, newTopic, newContent, newRetain, newDup);
+    else
+        throw new Error('Missing parameters for Publish');
 
     function reInit(newPacketID, newTopic, newContent, newRetain, newDup) {
         packetID = newPacketID;
