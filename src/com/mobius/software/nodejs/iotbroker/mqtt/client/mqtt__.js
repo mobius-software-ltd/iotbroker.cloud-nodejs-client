@@ -31,7 +31,6 @@ var TIMERS = require('./lib/Timers');
 
 function MqttClient() {
     this.ENUM = ENUM;
-    // this.id;
     Events.EventEmitter.call(this);
 }
 util.inherits(MqttClient, Events.EventEmitter);
@@ -42,8 +41,6 @@ MqttClient.prototype.Disconnect = disconnect;
 MqttClient.prototype.Publish = publish;
 MqttClient.prototype.Subscribe = subscribe;
 MqttClient.prototype.Unsubscribe = unsubscribe;
-MqttClient.prototype.Ping = ping;
-MqttClient.prototype.onDataRecieved = onDataRecieved;
 
 
 module.exports = MqttClient;
@@ -71,8 +68,21 @@ var Store = function Store() {
     }
 };
 var messages = Store();
-var subscribtions = Store();
-var unsubscribtions = Store();
+
+// connection.on('error', function(error) {
+//     console.log('Error occured while establishing connection to host');
+//     console.log(error);
+// })
+
+
+function connect(params) {
+    var that = this;
+    conntectionParams = params;
+    connection = connection
+    connection.connect(params.port, params.host, function() {
+        onConnect.call(that, conntectionParams);
+    })
+}
 
 function disconnect(params) {
     var disconnect = Disconnect()
@@ -81,55 +91,93 @@ function disconnect(params) {
     } catch (e) {
         console.log('Parser can`t encode provided params.');
     }
-    this.emit('mqttDisconnect', encDisconnect);
+    connection.write(encDisconnect);
+    TIMERS.releaseTimer(0);
+    this.emit('disconnected');
+    connection.end();
 }
 
 function subscribe(params) {
+    console.log('Subscribe by worker id:', conntectionParams.id);
+
+    var token = TOKENS.getToken();
     var topics = [];
     for (var i = 0; i < params.topics.length; i++) {
         topics.push(Topic(params.topics[i].topic, params.topics[i].qos));
     }
-    var subscribe = Subscribe(params.token, topics);
+    var subscribe = Subscribe(token, topics);
 
     try {
         var encSubscribe = parser.encode(subscribe);
+        // console.log('encSubscribe', encSubscribe);
     } catch (e) {
         console.log('Parser can`t encode provided params.');
     }
-    subscribtions.pushMessage(params.token, params)
-    this.emit('mqttSubscribe', encSubscribe, params.token)
+    var timer = Timer({
+        callback: function() {
+            connection.write(encSubscribe);
+        },
+        interval: conntectionParams.keepalive * 1000,
+    })
+    connection.write(encSubscribe);
+    TIMERS.setTimer(token, timer);
+    // connection.write(encSubscribe);
 }
 
 function unsubscribe(params) {
-    var topics = params || [];
-    var unsubscribe = Unsubscribe(params.token, topics);
+    var token = TOKENS.getToken();
+    var topics = params.topics || [];
+    //console.log('params:', topics[0]);
+    var unsubscribe = Unsubscribe(token, topics);
+    // console.log(unsubscribe.getTopics());
 
     try {
         var encUnsubscribe = parser.encode(unsubscribe);
+        // console.log('encSubscribe', encSubscribe);
     } catch (e) {
         console.log('Parser can`t encode provided params.');
     }
-    unsubscribtions.pushMessage(params.token, topics);
-    this.emit('mqttUnsubscribe', encUnsubscribe, params.token);
+    var timer = Timer({
+        callback: function() {
+            connection.write(encUnsubscribe);
+        },
+        interval: conntectionParams.keepalive * 1000,
+    })
+    connection.write(encUnsubscribe);
+    TIMERS.setTimer(token, timer);
 }
 
 function publish(params) {
-    if (params.qos == 0) {
-        params.token = null;
-    }
+    var that = this;
+    var token = null;
+    if (params.qos != 0)
+        var token = TOKENS.getToken();
+    console.log('Publish received params:', params)
     try {
-        var publish = Publish(params.token, Topic(Text(params.topic), params.qos), new Buffer.from(params.content), params.retain, params.isDupe);
+        var publish = Publish(token, Topic(Text(params.topic), params.qos), new Buffer.from(params.content), params.retain, params.isDupe);
         var encPublish = parser.encode(publish);
     } catch (error) {
         console.log('Parser can`t encode provided params.');
     }
 
-    messages.pushMessage(params.token, params);
-    this.emit('mqttPublish', encPublish, params, params.token);
+    messages.pushMessage(token, params);
+    if (params.qos != 0) {
+        var timer = Timer({
+            callback: function() {
+                connection.write(encPublish);
+            },
+            interval: conntectionParams.keepalive * 1000,
+        })
+        TIMERS.setTimer(token, timer);
+    }
+    connection.write(encPublish);
+    // if (params.qos == 0)
+    // this.emit('puback', params);
 }
 
-function connect(params) {
-    conntectionParams = params;
+function onConnect(params) {
+    var that = this;
+    isMaster = true;
     var connect = Connect({
         username: params.username,
         password: params.password,
@@ -147,11 +195,23 @@ function connect(params) {
     } catch (error) {
         console.log('Parser can`t encode provided params.');
     }
-    this.emit('mqttConnect', encConnect);
+    var newTimer = Timer({
+        callback: function() {
+            connection.write(encConnect);
+        },
+        interval: conntectionParams.keepalive * 1000
+    })
+    TIMERS.setTimer(0, newTimer);
+    connection.write(encConnect);
+    connection.on('data', function(data) {
+        onDataRecieved.call(that, data);
+    });
 }
 
 function onDataRecieved(data) {
     var that = this;
+    // console.log(this);
+    // console.log('Worker id:', conntectionParams.id);
     console.log("Data received: ", data);
 
     console.log("Data type decoded", ENUM.getKeyByValue(ENUM.MessageType, (parser.decode(data)).getType()));
@@ -164,67 +224,87 @@ function onDataRecieved(data) {
     }
 
     if (decoded.getType() == ENUM.MessageType.CONNACK) {
-        this.emit('mqttConnack', decoded);
-        // setInterval
-        // connectionStatus = ENUM.PingStatus.INITIALIZED;
-        // if (isMaster) {
-        //     TIMERS.releaseTimer(0);
-        //     var timer = Timer({
-        //         callback: function() {
-        //             ping.call(that);
-        //         },
-        //         interval: conntectionParams.keepalive * 1000
-        //     });
-        //     TIMERS.setTimer(0, timer);
-        // }
+        this.emit('connack');
+        connectionStatus = ENUM.PingStatus.INITIALIZED;
+        if (isMaster) {
+            TIMERS.releaseTimer(0);
+            var timer = Timer({
+                callback: function() {
+                    ping.call(that);
+                },
+                interval: conntectionParams.keepalive * 1000
+            });
+            TIMERS.setTimer(0, timer);
+        }
     }
     if (decoded.getType() == ENUM.MessageType.PINGRESP) {
         connectionStatus = ENUM.PingStatus.RECEIVED;
         console.log("Pingresp received!");
-        this.emit('mqttPingResp');
+        this.emit('ping');
     }
 
     if (decoded.getType() == ENUM.MessageType.PUBACK) {
         var id = decoded.getPacketID();
-        this.emit('mqttPuback', decoded, messages.pullMessage(id));
-        console.log("Puback received!");
+        TOKENS.releaseToken(id);
+        TIMERS.releaseTimer(id);
+        this.emit('puback', messages.pullMessage(id));
+        //console.log("Puback received!");
     }
 
     if (decoded.getType() == ENUM.MessageType.PUBREC) {
         var id = decoded.getPacketID();
-        this.emit('mqttPubrec', id);
-
-        try {
-            var pubrel = Pubrel(id);
-            var encPubrel = parser.encode(pubrel);
-            this.emit('mqttPubrel', encPubrel, id);
-        } catch (error) {
-            console.log('Parser can`t encode provided params.');
+        TIMERS.releaseTimer(id);
+        if (TOKENS.contains(id)) {
+            try {
+                var pubrel = Pubrel(id);
+                var encPubrel = parser.encode(pubrel);
+                var timer = Timer({
+                    callback: function() {
+                        connection.write(encPubrel);
+                    },
+                    interval: conntectionParams.keepalive * 1000,
+                })
+                TIMERS.setTimer(id, timer);
+                connection.write(encPubrel);
+            } catch (error) {
+                console.log('Parser can`t encode provided params.');
+            }
         }
+        //console.log("Pubrec received!");
     }
 
     if (decoded.getType() == ENUM.MessageType.PUBCOMP) {
         var id = decoded.getPacketID();
-        this.emit('mqttPubcomp', decoded, messages.pullMessage(id));
-        console.log("Pubcomp received!");
+        TOKENS.releaseToken(id);
+        TIMERS.releaseTimer(id);
+        this.emit('pubcomp', messages.pullMessage(id));
+        // this.emit('pubcomp');
+        //console.log("Pubcomp received!");
     }
 
     if (decoded.getType() == ENUM.MessageType.SUBACK) {
         var id = decoded.getPacketID();
         var codes = decoded.getReturnCodes();
-        console.log("Suback received!.");
-        this.emit('mqttSuback', decoded, subscribtions.pullMessage(id));
+        //console.log(codes);
+        console.log("Suback received!. id:", id);
+        TOKENS.releaseToken(id);
+        TIMERS.releaseTimer(id);
+        this.emit('suback');
     }
 
     if (decoded.getType() == ENUM.MessageType.UNSUBACK) {
         var id = decoded.getPacketID();
-        this.emit('mqttUnsuback', decoded, unsubscribtions.pullMessage(id));
+        TOKENS.releaseToken(id);
+        TIMERS.releaseTimer(id);
+        this.emit('unsuback');
+        //console.log("Unsuback received!. id:", id);
     }
 
     if (decoded.getType() == ENUM.MessageType.PUBREL) {
         var id = decoded.getPacketID();
         var encPubrelPubcomp = parser.encode(Pubcomp(id));
-        this.emit('mqttPubcompOut', encPubrelPubcomp, messages.pullMessage(id));
+        this.emit('publish', messages.pullMessage(id));
+        connection.write(encPubrelPubcomp);
     }
 
     if (decoded.getType() == ENUM.MessageType.PUBLISH) {
@@ -237,22 +317,23 @@ function onDataRecieved(data) {
         console.log("Publish topic:", publishTopic);
         console.log("Publish content:", publishContent);
         var message = {
-            packetID: id,
-            topic: publishTopic.substring(0, publishTopic.indexOf(":")),
-            qos: ENUM.QoS[publishQos],
-            content: publishContent
-        }
+                topic: publishTopic.substring(0, publishTopic.indexOf(":")),
+                qos: ENUM.QoS[publishQos],
+                content: publishContent
+            }
+            //console.log(message);
         switch (ENUM.QoS[publishQos]) {
             case 0:
-                this.emit('mqttPublishIn', message);
+                this.emit('publish', message);
                 break;
             case 1:
                 var encPublishPuback = parser.encode(Puback(id));
-                this.emit('mqttPubackOut', encPublishPuback, message);
+                connection.write(encPublishPuback);
+                this.emit('publish', message);
                 break;
             case 2:
                 var encPublishPubrec = parser.encode(Pubrec(id));
-                this.emit('mqttPubrecOut', encPublishPubrec, message);
+                connection.write(encPublishPubrec);
                 messages.pushMessage(id, message)
                 break;
             default:
@@ -262,16 +343,14 @@ function onDataRecieved(data) {
 }
 
 function ping() {
-    // if (connectionStatus == ENUM.PingStatus.SENT) {
-    //     this.emit('disconnected');
-    //     disconnect();
-    //     throw Error('Connection lost');
-    // }
-    // connectionStatus = ENUM.PingStatus.SENT;
-    // console.log('ping sent');
+    if (connectionStatus == ENUM.PingStatus.SENT) {
+        this.emit('disconnected');
+        disconnect();
+        throw Error('Connection lost');
+    }
+    connectionStatus = ENUM.PingStatus.SENT;
+    console.log('ping sent');
     var pingreq = Pingreq();
     var encPing = parser.encode(pingreq);
-    // connection.write(encPing);
-    this.emit('mqttPing', encPing);
-
+    connection.write(encPing);
 }

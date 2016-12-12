@@ -45,7 +45,10 @@ function Connack(options) {
         },
         setReturnCode: function(newReturnCode) {
             returnCode = newReturnCode;
-        }
+        },
+        getPacketID: function() {
+            return 0;
+        },
 
     }
 }
