@@ -1,76 +1,81 @@
 "use strict";
+var args = process.argv.slice(2);
+
 var net = require('net');
 var bus = require('servicebus').bus();
 const cluster = require('cluster');
-const numCPUs = require('os').cpus().length;
+const numCPUs = args[0] || require('os').cpus().length;
+
 var TOKENS = require('../client/lib/Tokens');
 var TIMERS = require('../client/lib/Timers');
 var Timer = require('../client/lib/Timer');
 
 
 if (cluster.isMaster) {
-    for (var i = 0; i < numCPUs; i++) {
-        cluster.fork();
+    if (!module.parent) {
+        for (var i = 0; i < numCPUs; i++) {
+            worker[i] = cluster.fork();
+        }
     }
 } else {
-    console.log('NET sub worker runned id:', cluster.worker.id);
+    // var bus = require('../client/lib/bus');
+    setTimeout(function() {
 
-    var connections = {};
-    var timers = {};
-    var tokens = {};
+        // }, timeout);
+        console.log('NET sub worker runned id:', cluster.worker.id);
+
+        var connections = {};
+        var timers = {};
+        var tokens = {};
 
 
-    bus.listen('net.newSocket', function(msg) {
-        try {
-            var socket = net.createConnection(msg.params.connection.port, msg.params.connection.host);
-        } catch (e) {
-            console.log('Unable to establish connection to the server. Error: ', e);
-        }
-        socket.clientID = msg.params.connection.clientID;
-        socket.connection = msg.params.connection;
+        bus.listen('net.newSocket', function(msg) {
+            // console.log('NEW SOCKET CALLBACK');
+            try {
+                var socket = net.createConnection(msg.params.connection.port, msg.params.connection.host);
+            } catch (e) {
+                console.log('Unable to establish connection to the server. Error: ', e);
+            }
+            socket.username = msg.params.connection.username;
+            socket.connection = msg.params.connection;
 
-        socket.on('data', function onDataReceived(data) {
-            bus.publish('mqtt.dataReceived', {
-                payload: data,
-                clientID: this.clientID
-            })
-        });
-        connections[msg.params.connection.clientID] = socket;
-        timers[msg.params.connection.clientID] = new TIMERS();
-        // tokens[msg.params.connection.clientID] = new TOKENS();
-
-        bus.send('mqtt.socketOpened', msg);
-    });
-
-    bus.subscribe('net.sendData', function(msg) {
-
-        if (typeof connections[msg.clientID] == 'undefined') return;
-        // console.log('!!!connections:', connections);
-
-        if (msg.parentEvent != 'mqttDisconnect' && msg.parentEvent != 'mqttPubackOut' && msg.parentEvent != 'mqttPubrecOut' && msg.parentEvent != 'mqttPubcompOut') {
-            var newTimer = Timer({
-                callback: function() {
-                    connections[msg.clientID].write(Buffer.from(msg.payload));
-                },
-                interval: connections[msg.clientID].connection.keepalive * 1000
+            socket.on('data', function onDataReceived(data) {
+                bus.publish('mqtt.dataReceived', {
+                    payload: data,
+                    username: this.username
+                })
             });
-            // var t = tokens[msg.clientID].getToken();
-            timers[msg.clientID].setTimer(msg.packetID, newTimer);
-        }
+            connections[msg.params.connection.username] = socket;
+            timers[msg.params.connection.username] = new TIMERS();
+            bus.send('mqtt.socketOpened', msg);
+        });
 
-        connections[msg.clientID].write(Buffer.from(msg.payload));
-    })
+        bus.subscribe('net.sendData', function(msg) {
+            if (typeof connections[msg.username] == 'undefined') return;
+            if (msg.parentEvent != 'mqttDisconnect' && msg.parentEvent != 'mqttPubackOut' && msg.parentEvent != 'mqttPubrecOut' && msg.parentEvent != 'mqttPubcompOut') {
+                var newTimer = Timer({
+                    callback: function() {
+                        connections[msg.username].write(Buffer.from(msg.payload));
+                    },
+                    interval: connections[msg.username].connection.keepalive * 1000
+                });
+                timers[msg.username].setTimer(msg.packetID, newTimer);
+            }
 
-    bus.subscribe('net.done', function(msg) {
-        if (typeof timers[msg.clientID] == 'undefined') return;
-        // console.log(timers);
+            connections[msg.username].write(Buffer.from(msg.payload));
+        })
 
-        timers[msg.clientID].releaseTimer(msg.packetID);
-        if (msg.parentEvent == 'mqttDisconnect') {
-            connections[msg.clientID].end();
-            delete timers[msg.packetID];
-            delete connections[msg.packetID];
-        }
+        bus.subscribe('net.done', function(msg) {
+            if (typeof timers[msg.username] == 'undefined') return;
 
-    });
+            timers[msg.username].releaseTimer(msg.packetID);
+            if (msg.parentEvent == 'mqttDisconnect') {
+                connections[msg.username].end();
+                delete timers[msg.packetID];
+                delete connections[msg.packetID];
+            }
+
+        });
+    }, Math.floor(Math.random() * (6000 - 1000) + 1000));
+
 }

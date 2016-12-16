@@ -1,0 +1,23 @@
+<div class="login col-xs-6 col-xs-offset-3">
+    <div class="login-title">
+        <h1>Topics list</h1>
+        <img class="exit" src="img/ic_action_exit.png" alt="exit" ng-click="indxCtrl.exit()">
+    </div>
+    <div class="topics-content topicRemove">
+        <div class="topics-item clearfix" ng-repeat="item in Ctrl.topics" popover-trigger="'outsideClick'" uib-popover-template="deletePopover.templateUrl" popover-title="{{deletePopover.title}}">
+            <!--{{item}}-->
+            <p class="topics-title col-xs-9">{{item.topic}}</p>
+            <div class="col-xs-3 clearfix">
+                <div class="topics-qos text-center">QOS: {{item.qos}}</div>
+            </div>
+        </div>
+    </div>
+    <div class="container col-xs-12 topicAdd">
+        <div class="col-xs-12 topics-button" popover-placement="bottom" popover-trigger="'outsideClick'" uib-popover-template="popover.templateUrl" popover-title="{{popover.title}}">
+            <figure class="text-center">
+                <img ng-src="img/topics_list_button_add_tap.png" alt="">
+                <figcaption>Click here to add new topic</figcaption>
+            </figure>
+        </div>
+    </div>
+</div>

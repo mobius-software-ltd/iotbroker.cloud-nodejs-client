@@ -102,6 +102,7 @@ function subscribe(params) {
 
 function unsubscribe(params) {
     var topics = params || [];
+    // console.log(params);
     var unsubscribe = Unsubscribe(params.token, topics);
 
     try {

@@ -20,7 +20,9 @@
   },
   "homepage": "https://github.com/mobius-software-ltd/iotbroker.cloud-nodejs-client#readme",
   "dependencies": {
+    "amnesia": "^1.0.5",
     "body-parser": "^1.15.2",
+    "cors": "^2.8.1",
     "express": "^4.14.0",
     "nedb": "^1.8.0",
     "servicebus": "^2.0.6"
