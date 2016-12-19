@@ -80,28 +80,51 @@ function Bus() {
             if (mem.initialized) {
 
                 // console.log('MEM DATA:', mem);
-                console.log('mem.id: ', mem.conf.id);
+                // console.log('mem.id: ', mem.conf.id);
                 if (mem.conf.id == 0) {
                     if (typeof mem.data == 'undefined')
                         mem.data = {};
                     var data = mem.data;
                     if (typeof data.busListeners == 'undefined') {
-                        data.busListeners = {};
+                        data['busListeners'] = new Object();
                         data.busListeners[topic] = [];
                     } else if (typeof data.busListeners[topic] == 'undefined') {
                         data.busListeners[topic] = [];
                     }
                     data.busListeners[topic].push(mem.conf.id);
+                    console.log('DATA: ', data.busListeners);
                     mem.data = data; //JSON.parse(JSON.stringify(data));
 
-                } else {
+                    mem.on('change', function(oldValue, newValue, remoteUpdate) {
+                        var newData = JSON.parse(newValue);
+                        console.log(newData);
+                        var prop = topic.toString();
+                        var msg = newData[prop];
 
+                        if (typeof msg != 'undefined' && typeof newData.busListeners[prop] != 'undefined' && newData.busListeners[prop].length > 0) {
+                            if (typeof msg.id != 'undefined') {
+                                if (newData.busListeners[prop].includes(msg.id.toString()) && mem.conf.id.toString() == msg.id.toString()) {
+                                    console.log('newData[prop]: ', prop, newData[prop]);
+                                    console.log('mem.conf.id.toString(): ', mem.conf.id.toString());
+                                    // console.log('msg.id.toString(): ', msg.id.toString());
+                                    delete msg.id;
+                                    delete mem.data.busListeners[prop];
+                                    // console.log('CALLBACK: ', callback);
+                                    callback.call(this, msg);
+                                }
+                            }
+                        }
+                    });
+
+                } else {
                     var initTimer = setInterval(function() {
                         if (typeof mem.data != 'undefined') {
-                            console.log('!=1 MEM DATA:', mem.data);
+                            // console.log('!=1 MEM DATA:', mem.data);
                             var data = mem.data;
+                            console.log('DATA: ', data);
                             if (typeof data.busListeners == 'undefined') {
-                                data.busListeners = {};
+                                data['busListeners'] = new Object();
+                                console.log('!!!!!', data)
                                 data.busListeners[topic] = [];
                             } else if (typeof data.busListeners[topic] == 'undefined') {
                                 data.busListeners[topic] = [];
@@ -110,28 +133,52 @@ function Bus() {
                             if (data.busListeners[topic].indexOf(mem.conf.id) == -1)
                                 data.busListeners[topic].push(mem.conf.id);
                             mem.data = data; //JSON.parse(JSON.stringify(data));
+
                             clearInterval(initTimer);
+
+                            mem.on('change', function(oldValue, newValue, remoteUpdate) {
+                                var newData = JSON.parse(newValue);
+                                console.log(newData);
+                                var prop = topic.toString();
+                                var msg = newData[prop];
+                                if (typeof msg != 'undefined' && typeof newData.busListeners[prop] != 'undefined' && newData.busListeners[prop].length > 0) {
+                                    if (typeof msg.id != 'undefined') {
+                                        if (newData.busListeners[prop].includes(msg.id.toString()) && mem.conf.id.toString() == msg.id.toString()) {
+                                            console.log('newData[prop]: ', prop, newData[prop]);
+                                            console.log('mem.conf.id.toString(): ', mem.conf.id.toString());
+                                            console.log('msg.id.toString(): ', msg.id.toString());
+                                            delete msg.id;
+                                            delete mem.data.busListeners[prop];
+                                            // console.log('CALLBACK: ', callback);
+                                            callback.call(this, msg);
+                                        }
+                                    }
+                                }
+                            });
                         }
                     }, 20);
                 }
 
-                mem.on('change', function(oldValue, newValue, remoteUpdate) {
-                    var newData = JSON.parse(newValue);
-                    var prop = topic.toString();
-                    var msg = newData[prop];
-                    // console.log('newValue: ', newValue, mem.conf.id);
-                    if (typeof msg != 'undefined' && newData.busListeners[prop].length > 0) {
-                        if (typeof msg.id != 'undefined') {
-                            if (newData.busListeners[prop].includes(msg.id.toString()) && mem.conf.id.toString() == msg.id.toString()) {
-                                delete msg.id;
-                                callback.call(this, msg);
-                            }
-                        }
-                    }
-                });
+                // mem.on('change', function(oldValue, newValue, remoteUpdate) {
+                //     var newData = JSON.parse(newValue);
+                //     var prop = topic.toString();
+                //     var msg = newData[prop];
+                //     if (typeof msg != 'undefined' && newData.busListeners[prop].length > 0) {
+                //         if (typeof msg.id != 'undefined') {
+                //             if (newData.busListeners[prop].includes(msg.id.toString()) && mem.conf.id.toString() == msg.id.toString()) {
+                //                 console.log('newData[prop]: ', newData[prop]);
+                //                 console.log('mem.conf.id.toString(): ', mem.conf.id.toString());
+                //                 console.log('msg.id.toString(): ', msg.id.toString());
+                //                 delete msg.id;
+                //                 // console.log('CALLBACK: ', callback);
+                //                 callback.call(this, msg);
+                //             }
+                //         }
+                //     }
+                // });
                 clearInterval(timer);
             }
-        });
+        }, 2000);
     }
 
     function publish(topic, msg) {
@@ -144,18 +191,18 @@ function Bus() {
     }
 
     function send(topic, msg) {
-        console.log(mem);
 
         var data = mem.data || {};
         msg.id = mem.conf.id;
         if (typeof mem.data.busListeners[topic] != 'undefined') {
             for (var i = 0; i <= mem.conf.length; i++) {
                 if (mem.data.busListeners[topic].includes(msg.id.toString())) {
+                    // console.log('Bus SEND: ', msg);
                     // console.log('SEND topic:', topic, '_msg: ', msg);
                     var prop = topic.toString();
                     data[prop] = msg;
                     mem.data = JSON.parse(JSON.stringify(data));
-                    // console.log('MEM.DATA:', mem.data);
+                    console.log('MEM.DATA:', JSON.stringify(mem.data));
                     break;
                 } else {
                     msg.id = i;
@@ -181,6 +228,6 @@ function Bus() {
 setInterval(function() {
     console.log('MEM DATA:', mem.data);
 
-}, 5000);
+}, 10000);
 
 module.exports = new Bus();

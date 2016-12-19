@@ -17,6 +17,8 @@ app.use(function(err, req, res, next) {
     console.error(err.stack);
     res.status(500).send('Something broke!');
 });
+// if (cluster.isMaster)
+// console.log('PID: ', process.pid);
 
 if (cluster.isMaster) {
     var worker = [];

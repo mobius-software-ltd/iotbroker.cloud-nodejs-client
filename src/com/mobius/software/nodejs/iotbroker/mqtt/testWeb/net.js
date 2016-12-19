@@ -2,7 +2,7 @@
 var args = process.argv.slice(2);
 
 var net = require('net');
-var bus = require('servicebus').bus();
+// var bus = require('servicebus').bus();
 const cluster = require('cluster');
 const numCPUs = args[0] || require('os').cpus().length;
 
@@ -10,6 +10,7 @@ var TOKENS = require('../client/lib/Tokens');
 var TIMERS = require('../client/lib/Timers');
 var Timer = require('../client/lib/Timer');
 
+// console.log('PID: ', process.pid);
 
 if (cluster.isMaster) {
     if (!module.parent) {
@@ -18,11 +19,11 @@ if (cluster.isMaster) {
         }
     }
 } else {
-    // var bus = require('../client/lib/bus');
+    var bus = require('../client/lib/bus');
     setTimeout(function() {
 
         // }, timeout);
-        console.log('NET sub worker runned id:', cluster.worker.id);
+        // console.log('NET sub worker runned id:', cluster.worker.id);
 
         var connections = {};
         var timers = {};

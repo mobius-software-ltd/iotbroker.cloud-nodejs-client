@@ -60,7 +60,7 @@ if (cluster.isMaster) {
     bus.start = 5;
     setTimeout(function() {
 
-        console.log('MQTT sub worker runned id:', cluster.worker.id);
+        // console.log('MQTT sub worker runned id:', cluster.worker.id);
 
         bus.listen('mqtt.connect', function(msg) {
             bus.send('net.newSocket', msg);
