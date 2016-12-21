@@ -13,36 +13,34 @@ mem.on('log', function(data) {
 var bus = function bus() {
     var changes = 0;
     var tryNum = 0;
-    // setTimeout(function() {
 
     function subscribe(topic, callback) {
-        // var timer = setInterval(function() {
-        if (mem.initialized) {
-            mem.on('change', function(oldValue, newValue, remoteUpdate) {
-                var newData = newValue;
-                if (typeof oldValue != 'undefined') {
-                    var oldData = oldValue;
-                    var oldMsg = oldData[prop];
-                }
-                // console.log('oldValue: ', oldValue);
-
-                var prop = topic.toString();
-                var msg = newData[prop];
-                if (!!msg && !oldMsg)
-                    if (typeof msg.id == 'undefined') {
-                        // console.log('SUSCRIBE MSG', msg);
-                        delete newData[prop];
-                        mem.data = newData;
-                        callback.call(this, msg);
+        var timer = setInterval(function() {
+            if (mem.initialized) {
+                mem.on('change', function(oldValue, newValue, remoteUpdate) {
+                    var newData = newValue;
+                    if (typeof oldValue != 'undefined') {
+                        var oldData = oldValue;
+                        var oldMsg = oldData[prop];
                     }
-            });
-            // clearInterval(timer);
-        }
-        // }, 20);
+                    // console.log('oldValue: ', oldValue);
+
+                    var prop = topic.toString();
+                    var msg = newData[prop];
+                    if (!!msg && !oldMsg)
+                        if (typeof msg.id == 'undefined') {
+                            // console.log('SUSCRIBE MSG', msg);
+                            delete newData[prop];
+                            mem.data = newData;
+                            callback.call(this, msg);
+                        }
+                });
+                clearInterval(timer);
+            }
+        }, 50);
     }
 
-    function listen(topic, callback) { ////////////////////
-        // setTimeout(function() {
+    function listen(topic, callback) {
         var timer = setInterval(function() {
             if (mem.initialized) {
 
@@ -83,30 +81,7 @@ var bus = function bus() {
                         }
                     }, 25);
                 }
-
                 clearInterval(timer);
-
-
-
-
-                // mem.on('change', function(oldValue, newValue, remoteUpdate) {
-                //     var newData = JSON.parse(newValue);
-                //     var prop = topic.toString();
-                //     var msg = newData[prop];
-                //     if (typeof msg != 'undefined' && newData.busListeners[prop].length > 0) {
-                //         if (typeof msg.id != 'undefined') {
-                //             if (newData.busListeners[prop].includes(msg.id.toString()) && mem.conf.id.toString() == msg.id.toString()) {
-                //                 console.log('newData[prop]: ', newData[prop]);
-                //                 console.log('mem.conf.id.toString(): ', mem.conf.id.toString());
-                //                 console.log('msg.id.toString(): ', msg.id.toString());
-                //                 delete msg.id;
-                //                 // console.log('CALLBACK: ', callback);
-                //                 callback.call(this, msg);
-                //             }
-                //         }
-                //     }
-                // });
-                // clearInterval(timer);
             }
         }, Math.floor(100 * cluster.worker.id) * (tryNum % 2));
         tryNum++;
@@ -161,7 +136,6 @@ var bus = function bus() {
                 // console.log('Bus SEND: ', msg, topic);
                 var prop = topic.toString();
                 data[prop] = msg;
-                // data = JSON.stringify(data)
                 mem.data = data;
                 // console.log('MEM.DATA:', data);
             }
