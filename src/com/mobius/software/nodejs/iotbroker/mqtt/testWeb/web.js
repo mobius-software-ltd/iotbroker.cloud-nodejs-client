@@ -27,7 +27,7 @@ if (cluster.isMaster) {
         worker[i] = cluster.fork();
     }
 
-    cluster.on('exit', function(deadWorker, code, signal) {
+    cluster.on('exit1', function(deadWorker, code, signal) {
         // Restart the worker
         var worker = cluster.fork();
 

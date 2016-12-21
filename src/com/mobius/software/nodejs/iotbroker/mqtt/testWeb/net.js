@@ -1,4 +1,4 @@
-"use strict";
+// "use strict";
 var args = process.argv.slice(2);
 
 var net = require('net');
@@ -9,6 +9,7 @@ const numCPUs = args[0] || require('os').cpus().length;
 var TOKENS = require('../client/lib/Tokens');
 var TIMERS = require('../client/lib/Timers');
 var Timer = require('../client/lib/Timer');
+var bus = require('../client/lib/bus');
 
 // console.log('PID: ', process.pid);
 
@@ -19,7 +20,6 @@ if (cluster.isMaster) {
         }
     }
 } else {
-    var bus = require('../client/lib/bus');
     setTimeout(function() {
 
         // }, timeout);
@@ -29,7 +29,7 @@ if (cluster.isMaster) {
         var timers = {};
         var tokens = {};
 
-
+        // console.log(bus)
         bus.listen('net.newSocket', function(msg) {
             // console.log('NEW SOCKET CALLBACK');
             try {
@@ -77,6 +77,6 @@ if (cluster.isMaster) {
             }
 
         });
-    }, Math.floor(Math.random() * (6000 - 1000) + 1000));
+    }, 100 * (cluster.worker.id + 4));
 
 }

@@ -14,7 +14,7 @@ var TOKENS = require('../client/lib/Tokens');
 var TIMERS = require('../client/lib/Timers');
 var Timer = require('../client/lib/Timer');
 // var bus = require('servicebus').bus();
-// var bus = require('../client/lib/bus');
+var bus = require('../client/lib/bus');
 
 const cluster = require('cluster');
 const numCPUs = args[0] || require('os').cpus().length;
@@ -56,8 +56,7 @@ if (cluster.isMaster) {
     var CLIENT = {};
     var tokens = {};
     var pingTimeout = {};
-    var bus = require('../client/lib/bus');
-    bus.start = 5;
+    // var bus = require('../client/lib/bus');
     setTimeout(function() {
 
         // console.log('MQTT sub worker runned id:', cluster.worker.id);
@@ -101,12 +100,12 @@ if (cluster.isMaster) {
         });
 
         bus.listen('mqtt.socketOpened', function(msg) {
-            console.log(msg)
             CLIENT[msg.params.connection.username] = new mqtt();
             CLIENT[msg.params.connection.username].id = msg.params.connection.username;
             tokens[msg.params.connection.username] = new TOKENS();
 
             CLIENT[msg.params.connection.username].on('mqttConnect', function(data) {
+                // console.log('!!!!!!OPENED', msg)
                 bus.publish('net.sendData', {
                     payload: data,
                     username: this.id,
@@ -419,10 +418,11 @@ if (cluster.isMaster) {
             CLIENT[msg.username].onDataRecieved(Buffer.from(msg.payload));
         });
 
-    }, Math.floor(Math.random() * (6000 - 1000) + 1000));
+    }, 100 * cluster.worker.id);
 }
 
 function send(a, b) {
+    console.log(bus);
     bus.send(a, b);
 }
 
