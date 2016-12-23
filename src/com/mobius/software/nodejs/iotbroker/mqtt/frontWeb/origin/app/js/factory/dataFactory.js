@@ -22,6 +22,10 @@
 
             $http.post(mqttConstants.API_SERVER_URL + mqttConstants.API_CONNECT_URL, customer)
                 .then(function(data) {
+                    if (data.data.length < 1) {
+                        toastr.error('Login failed!');
+                        return;
+                    }
                     $location.path('/topics');
                     console.log(data);
                     toastr.success('Successfully logged in!', data);
@@ -39,10 +43,8 @@
             $http.post(mqttConstants.API_SERVER_URL + mqttConstants.API_DISCONNECT_URL, params)
                 .then(function(data) {
                     $location.path('/');
-                    // console.log(data);
                     toastr.success('Successfully logged out!', data);
                 }, function(data) {
-                    // console.log(data);
                     toastr.error(data.data, 'Oops some error here!');
 
                 })
@@ -77,10 +79,10 @@
             $http.post(mqttConstants.API_SERVER_URL + mqttConstants.API_PUBLISH_URL, params)
                 .then(function(data) {
                     // $location.path('/topics');
-                    console.log(data);
+                    // console.log(data);
                     toastr.success('Successfully published!', data);
                 }, function(data) {
-                    console.log(data);
+                    // console.log(data);
                     toastr.error(data.data, 'Oops some error here!');
 
                 })

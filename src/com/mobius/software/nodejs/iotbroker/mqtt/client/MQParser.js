@@ -1,6 +1,25 @@
+/**
+ * Mobius Software LTD
+ * Copyright 2015-2016, Mobius Software LTD
+ *
+ * This is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU Lesser General Public License as
+ * published by the Free Software Foundation; either version 2.1 of
+ * the License, or (at your option) any later version.
+ *
+ * This software is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this software; if not, write to the Free
+ * Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
+ * 02110-1301 USA, or see the FSF site: http://www.fsf.org.
+ */
+
 'use strict';
 
-// var net = require('net');
 var ENUM = require('./lib/enum');
 var Connack = require('./lib/Connack');
 var Connect = require('./lib/Connect');
@@ -21,8 +40,6 @@ var Unsuback = require('./lib/Unsuback');
 var Unsubscribe = require('./lib/Unsubscribe');
 var Will = require('./lib/Will');
 
-// console.log(ENUM.QoS.AT_MOST_ONCE);
-
 var MQParser = {
     DISCONNECT_MESSAGE: Disconnect(),
     PINGREQ_MESSAGE: Pingreq(),
@@ -36,7 +53,6 @@ var MQParser = {
 
 function next(buf) {
     var index = 0;
-    // buf.markReaderIndex();
     var type = ENUM.MessageType[ENUM.getKeyByValue(ENUM.MessageType, (((buf.readUInt8(index) >> 4) & 0xf)))];
     index += 1;
 
@@ -44,7 +60,6 @@ function next(buf) {
         case ENUM.MessageType.PINGREQ:
         case ENUM.MessageType.PINGRESP:
         case ENUM.MessageType.DISCONNECT:
-            // buf.resetReaderIndex();
             return Buffer.alloc(2);
         default:
             var length = LengthDetails().decode({
@@ -53,7 +68,6 @@ function next(buf) {
             });
             index += length.getSize();
 
-            // buf.resetReaderIndex();
             if (length.getLength() === 0)
                 return null;
             var result = length.getLength() + length.getSize() + 1;
@@ -73,10 +87,7 @@ function decode(buf) {
         index: index
     });
     index += length.getSize();
-    // console.log('length: ', length.getLength());
     var type = ENUM.MessageType[ENUM.getKeyByValue(ENUM.MessageType, (fixedHeader >> 4) & 0xf)]; // MessageType.valueOf();
-    // console.log(type);
-    // try {
     switch (type) {
         case ENUM.MessageType.CONNECT:
             var nameValue = Buffer.alloc(buf.readUInt16BE(index));
@@ -85,7 +96,6 @@ function decode(buf) {
             var end = index + nameValue.length;
             nameValue = buf.slice(start, end);
             index = end;
-            // buf.readBytes(nameValue, 0, nameValue.length);
             var name = nameValue.toString('utf8');
             if (name != 'MQTT')
                 throw new Error("CONNECT, protocol-name set to " + name);
@@ -122,18 +132,11 @@ function decode(buf) {
             index += 2;
             var clientIdValue = Buffer.alloc(buf.readUInt16BE(index));
             index += 2;
-
-            // byte[] clientIdValue = new byte[buf.readUInt16BE()];
             var start = index;
             var end = index + clientIdValue.length;
             clientIdValue = buf.slice(start, end);
             index = end;
-
-            // buf.readBytes(clientIdValue, 0, clientIdValue.length);
             var clientID = clientIdValue.toString('utf8');
-
-            // if (!StringVerifier.verify(clientID))
-            //     throw new Error("ClientID contains restricted characters: U+0000, U+D000-U+DFFF");
 
             var willTopic = null;
             var willMessage = null;
@@ -147,19 +150,13 @@ function decode(buf) {
 
                 var willTopicValue = Buffer.alloc(buf.readUInt16BE(index));
                 index += 2;
-
-                // byte[] clientIdValue = new byte[buf.readUInt16BE()];
-                // byte[] willTopicValue = new byte[buf.readUInt16BE()];
                 if (buf.length - index < willTopicValue.length)
                     throw new Error("Invalid encoding will/username/password");
                 var start = index;
                 var end = index + willTopicValue.length;
                 willTopicValue = buf.slice(start, end);
                 index = end;
-                // buf.readBytes(willTopicValue, 0, willTopicValue.length);
                 var willTopicName = willTopicValue.toString('utf8');
-                // if (!StringVerifier.verify(willTopicName))
-                //     throw new Error("WillTopic contains one or more restricted characters: U+0000, U+D000-U+DFFF");
                 willTopic = Text(willTopicName);
 
                 if (buf.length - index < 2)
@@ -167,7 +164,6 @@ function decode(buf) {
 
                 willMessage = Buffer.alloc(buf.readUInt16BE(index));
                 index += 2;
-
 
                 if (buf.length - index < willMessage.length)
                     throw new Error("Invalid encoding will/username/password");
@@ -177,7 +173,6 @@ function decode(buf) {
                 willMessage = buf.slice(start, end);
                 index = end;
 
-                // buf.readBytes(willMessage, 0, willMessage.length);
                 if (willTopic.length() === 0)
                     throw new Error("invalid will encoding");
                 will = new Will(new Topic(willTopic, willQos), willMessage, willRetain);
@@ -200,9 +195,6 @@ function decode(buf) {
                 userNameValue = buf.slice(start, end);
                 index = end;
                 username = userNameValue.toString('utf8');
-                // buf.readBytes(userNameValue, 0, userNameValue.length);
-                // if (!StringVerifier.verify(username))
-                //     throw new Error("Username contains one or more restricted characters: U+0000, U+D000-U+DFFF");
             }
 
             if (userPassFlag) {
@@ -219,11 +211,7 @@ function decode(buf) {
                 var end = index + userPassValue.length;
                 userPassValue = buf.slice(start, end);
                 index = end;
-
-                // buf.readBytes(userPassValue, 0, userPassValue.length);
                 password = userPassValue.toString('utf8');;
-                // if (!StringVerifier.verify(password))
-                //     throw new Error("Password contains one or more restricted characters: U+0000, U+D000-U+DFFF");
             }
 
             if (buf.length - index > 0)
@@ -238,8 +226,6 @@ function decode(buf) {
         case ENUM.MessageType.CONNACK:
             var sessionPresentValue = buf.readUInt8(index);
             index += 1;
-            // console.log(buf);
-            // console.log('CONNACK', index, sessionPresentValue)
 
             if (sessionPresentValue != 0 && sessionPresentValue != 1)
                 throw new Error("CONNACK, session-present set to " + (sessionPresentValue & 0xff));
@@ -248,7 +234,6 @@ function decode(buf) {
             var connackByte = buf.readUInt8(index);
             index += 1;
             var connackCode = ENUM.getKeyByValue(ENUM.ConnackCode, connackByte);
-            // console.log('connackByte', connackCode);
             if (connackCode == null)
                 throw new Error("Invalid connack code: " + connackByte);
             header = Connack({
@@ -278,12 +263,8 @@ function decode(buf) {
             var end = index + topicNameValue.length;
             topicNameValue = buf.slice(start, end);
             index = end;
-            // buf.readBytes(topicNameValue, 0, topicNameValue.length);
 
             var topicName = topicNameValue.toString('utf8');
-
-            // if (!StringVerifier.verify(topicName))
-            //     throw new Error("Publish-topic contains one or more restricted characters: U+0000, U+D000-U+DFFF");
             dataLength -= topicName.length + 2;
 
             var packetID = null;
@@ -302,7 +283,6 @@ function decode(buf) {
                 data = buf.slice(start, end);
                 index = end;
             }
-            // buf.readBytes(data, 0, data.length);
             header = Publish(packetID, Topic(Text(topicName), qos), data, retain, dup);
             break;
 
@@ -334,15 +314,11 @@ function decode(buf) {
                 var end = index + value.length;
                 value = buf.slice(start, end);
                 index = end;
-
-                // buf.readBytes(value, 0, value.length);
                 var requestedQos = ENUM.getKeyByValue(ENUM.QoS, buf.readUInt8(index));
                 index += 1;
                 if (requestedQos == null)
                     throw new Error("Subscribe qos must be in range from 0 to 2: " + requestedQos);
                 var topic = value.toString('utf8');
-                // if (!StringVerifier.verify(topic))
-                //     throw new Error("Subscribe topic contains one or more restricted characters: U+0000, U+D000-U+DFFF");
                 var subscription = Topic(Text(topic), requestedQos);
                 subscriptions.push(subscription);
             }
@@ -377,16 +353,12 @@ function decode(buf) {
             while (buf.length - index > 0) {
                 var value = Buffer.alloc(buf.readUInt16BE(index));
                 index += 2;
-                // byte[] value = new byte[buf.readUInt16BE()];
-                // buf.readBytes(value, 0, value.length);
                 var start = index;
                 var end = index + value.length;
                 value = buf.slice(start, end);
                 index = end;
 
                 var topic = value.toString('utf8');
-                // if (!StringVerifier.verify(topic))
-                //     throw new Error("Unsubscribe topic contains one or more restricted characters: U+0000, U+D000-U+DFFF");
                 unsubscribeTopics.push(Text(topic));
             }
             if (unsubscribeTopics.length === 0)
@@ -412,26 +384,16 @@ function decode(buf) {
             throw new Error("Invalid header type: " + type);
     }
 
-    // if (buf.isReadable())
-    //     throw new Error("unexpected bytes in content");
-
-    // if (length.getLength() != header.getLength())
-    // throw new Error("Invalid length. Encoded: " + length.getLength() + ", actual: " + header.getLength());
-
     return header;
-    // }catch (e) {
-    //throw new Error("unsupported string encoding:" + e);
-    //}
 }
 
 function encode(header) {
-    // console.log(header.getLength())
     var length = header.getLength();
     var newBuffer = getBuffer(length);
     var buf = newBuffer.buffer;
     var type = header.getType();
     var index = newBuffer.position;
-    // console.log(type)
+
     switch (type) {
         case ENUM.MessageType.CONNECT:
             var connect = header;
@@ -457,8 +419,6 @@ function encode(header) {
             if (connect.isWillFlag() == true) {
 
                 var willTopic = connect.getWill().getTopic().getName();
-                // console.log("Buffer length:" + willTopic.length());
-                // console.log(connect.getName(), "index:", index);
 
                 if (!!willTopic) {
                     index = buf.writeUInt16BE(willTopic.length(), index);
@@ -499,11 +459,10 @@ function encode(header) {
             firstByte |= (publish.getTopic().getQos() << 1);
             firstByte |= publish.isRetain() ? 1 : 0;
             buf.writeUInt8(firstByte, 0);
-            // console.log('buf:', buf);
-            // console.log('index:', index);
+
             index = buf.writeUInt16BE(publish.getTopic().getLength(), index);
             index += buf.write(publish.getTopic().getName().toString(), index);
-            // console.log(!!publish.getPacketID());
+
             switch (publish.getTopic().getQos()) {
                 case ENUM.QoS.AT_MOST_ONCE:
                     if (!!publish.getPacketID())
@@ -517,7 +476,6 @@ function encode(header) {
                     break;
             }
 
-            // console.log(publish.getContent());
             index += buf.write(publish.getContent().toString('utf8'), index);
             break;
 
@@ -589,7 +547,6 @@ function encode(header) {
         case ENUM.MessageType.PINGREQ:
         case ENUM.MessageType.PINGRESP:
             buf.writeUInt8((type << 4), 0);
-            // console.log(buf, index);
             break;
 
         default:
@@ -601,7 +558,6 @@ function encode(header) {
 
 function getBuffer(length) {
     var lengthBytes;
-    // console.log(length);
     if (length <= 127)
         lengthBytes = 1;
     else if (length <= 16383)
@@ -624,7 +580,6 @@ function getBuffer(length) {
     do {
         encByte = l % 128;
         l = (Math.floor(l / 128)).toFixed(0);
-        // console.log(l);
         if (l > 0)
             buf.writeUInt8(encByte + 128, pos)
         else
@@ -634,15 +589,10 @@ function getBuffer(length) {
     }
     while (l > 0);
 
-    // var a = buf.writeUInt8(true, 0);
-    // console.log(a);
-
     return {
         buffer: buf,
         position: pos
     };
 }
-// console.log(MQParser.getBuffer(127));
 
-// console.log(MQParser.decode(MQParser.encode(Pubcomp(100))).getType());
 module.exports = MQParser;

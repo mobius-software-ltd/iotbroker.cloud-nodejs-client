@@ -29,7 +29,7 @@
         init();
 
         function deleteItem(params) {
-            console.log(params.item);
+            // console.log(params.item);
             if (typeof params.item == 'undefined') return;
             dataFactory.unsubscribe({
                 topics: [params.item.topic],

@@ -1,17 +1,34 @@
-// "use strict";
+/**
+ * Mobius Software LTD
+ * Copyright 2015-2016, Mobius Software LTD
+ *
+ * This is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU Lesser General Public License as
+ * published by the Free Software Foundation; either version 2.1 of
+ * the License, or (at your option) any later version.
+ *
+ * This software is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this software; if not, write to the Free
+ * Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
+ * 02110-1301 USA, or see the FSF site: http://www.fsf.org.
+ */
+
 var args = process.argv.slice(2);
 
 var net = require('net');
-// var bus = require('servicebus').bus();
-const cluster = require('cluster');
-const numCPUs = args[0] || require('os').cpus().length;
+var bus = require('servicebus').bus();
+var cluster = require('cluster');
+var numCPUs = args[0] || require('os').cpus().length;
 
 var TOKENS = require('../client/lib/Tokens');
 var TIMERS = require('../client/lib/Timers');
 var Timer = require('../client/lib/Timer');
-var bus = require('../client/lib/bus');
 
-// console.log('PID: ', process.pid);
 
 if (cluster.isMaster) {
     if (!module.parent) {
@@ -22,30 +39,25 @@ if (cluster.isMaster) {
 } else {
     setTimeout(function() {
 
-        // }, timeout);
-        // console.log('NET sub worker runned id:', cluster.worker.id);
-
         var connections = {};
         var timers = {};
         var tokens = {};
 
-        // console.log(bus)
         bus.listen('net.newSocket', function(msg) {
-            // console.log('NEW SOCKET CALLBACK');
             try {
                 var socket = net.createConnection(msg.params.connection.port, msg.params.connection.host);
+                socket.username = msg.params.connection.username;
+                socket.connection = msg.params.connection;
+
+                socket.on('data', function onDataReceived(data) {
+                    bus.publish('mqtt.dataReceived', {
+                        payload: data,
+                        username: this.username
+                    });
+                });
             } catch (e) {
                 console.log('Unable to establish connection to the server. Error: ', e);
             }
-            socket.username = msg.params.connection.username;
-            socket.connection = msg.params.connection;
-
-            socket.on('data', function onDataReceived(data) {
-                bus.publish('mqtt.dataReceived', {
-                    payload: data,
-                    username: this.username
-                })
-            });
             connections[msg.params.connection.username] = socket;
             timers[msg.params.connection.username] = new TIMERS();
             bus.send('mqtt.socketOpened', msg);
@@ -64,12 +76,12 @@ if (cluster.isMaster) {
             }
 
             connections[msg.username].write(Buffer.from(msg.payload));
-        })
+        });
 
         bus.subscribe('net.done', function(msg) {
             if (typeof timers[msg.username] == 'undefined') return;
-
             timers[msg.username].releaseTimer(msg.packetID);
+
             if (msg.parentEvent == 'mqttDisconnect') {
                 connections[msg.username].end();
                 delete timers[msg.packetID];
@@ -78,5 +90,4 @@ if (cluster.isMaster) {
 
         });
     }, 100 * (cluster.worker.id + 4));
-
 }

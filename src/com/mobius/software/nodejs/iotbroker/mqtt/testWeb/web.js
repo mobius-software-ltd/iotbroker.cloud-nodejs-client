@@ -1,24 +1,39 @@
-'use strict'
+/**
+ * Mobius Software LTD
+ * Copyright 2015-2016, Mobius Software LTD
+ *
+ * This is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU Lesser General Public License as
+ * published by the Free Software Foundation; either version 2.1 of
+ * the License, or (at your option) any later version.
+ *
+ * This software is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this software; if not, write to the Free
+ * Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
+ * 02110-1301 USA, or see the FSF site: http://www.fsf.org.
+ */
+
+'use strict';
 var express = require('express');
 var bodyParser = require('body-parser');
 var cors = require('cors');
 var app = express();
-
 var guid = require('../client/lib/guid');
 var mqttClient = require('./mqttClient');
 
-const cluster = require('cluster');
-const numCPUs = require('os').cpus().length;
+var cluster = require('cluster');
+var numCPUs = require('os').cpus().length;
 
 app.use(bodyParser.json());
 app.use(cors());
 app.use(function(err, req, res, next) {
-
-    console.error(err.stack);
     res.status(500).send('Something broke!');
 });
-// if (cluster.isMaster)
-// console.log('PID: ', process.pid);
 
 if (cluster.isMaster) {
     var worker = [];
@@ -27,25 +42,14 @@ if (cluster.isMaster) {
         worker[i] = cluster.fork();
     }
 
-    cluster.on('exit1', function(deadWorker, code, signal) {
-        // Restart the worker
+    cluster.on('exit', function(deadWorker, code, signal) {
         var worker = cluster.fork();
-
-        // Note the process IDs
-        var newPID = worker.process.pid;
-        var oldPID = deadWorker.process.pid;
-
-        // Log the event
-        // console.log('worker ' + oldPID + ' died.');
-        console.log('worker ' + newPID + ' restarted.');
     });
 } else {
     app.listen('8888', function() {
         console.log('app is running on port 8888');
     });
 
-
-    // //sudo siege -c100 -t1M http://localhost:8888/test
     app.get('/test', function(req, res) {
         mqttClient.send('mqtt.connect', {
             msg: 'connect',
@@ -55,7 +59,6 @@ if (cluster.isMaster) {
     });
 
     app.post('/connect', function onConnect(req, res) {
-        // console.log(req);
         //VALIDATION
         if (!req.body.host || !/^(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/.test(req.body.host)) {
             res.status(400).send('Invalid request! Parameter "host" mismatch.');
@@ -85,7 +88,6 @@ if (cluster.isMaster) {
             res.status(400).send('Invalid request! Parameter "keepalive" mismatch.');
             return;
         }
-        // console.log(bus.getId());
         try {
             var connectionParams = {
                 type: 'connection',
@@ -104,7 +106,7 @@ if (cluster.isMaster) {
             res.status(400).send('Invalid request! Parameters mismatch.');
             return;
         }
-        if (!!req.body.will) {
+        if (!!req.body.will && Object.keys(req.body.will).length > 1) {
             if (!req.body.will.topic) {
                 res.status(400).send('Invalid request! Parameter "topic" in "will" mismatch.');
                 return;
@@ -142,7 +144,6 @@ if (cluster.isMaster) {
         setTimeout(function() {
             mqttClient.getData({ type: 'connack', connectionId: req.body.username }, res);
         }, 500);
-        // res.send('connect received');
     });
 
     app.post('/disconnect', function onDisconnect(req, res) {
@@ -241,7 +242,6 @@ if (cluster.isMaster) {
         res.send('unsubscribe received');
     });
     app.post('/getmessages', function onGetMessages(req, res) {
-        // console.log(req.body);
         mqttClient.getData({
             type: 'message',
             'message.direction': { $in: req.body.directions },
@@ -250,11 +250,9 @@ if (cluster.isMaster) {
         }, res);
     });
     app.post('/gettopics', function onGetMessages(req, res) {
-        // console.log(req.body);
         mqttClient.getData({
             type: 'subscribtion',
             'subscribtion.connectionId': req.body.username
         }, res);
     });
-
 }

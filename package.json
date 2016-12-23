@@ -24,6 +24,7 @@
     "body-parser": "^1.15.2",
     "cors": "^2.8.1",
     "express": "^4.14.0",
+    "json-socket": "^0.2.1",
     "nedb": "^1.8.0",
     "servicebus": "^2.0.6"
   }

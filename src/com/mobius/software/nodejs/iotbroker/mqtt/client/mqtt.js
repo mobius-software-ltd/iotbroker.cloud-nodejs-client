@@ -1,3 +1,23 @@
+/**
+ * Mobius Software LTD
+ * Copyright 2015-2016, Mobius Software LTD
+ *
+ * This is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU Lesser General Public License as
+ * published by the Free Software Foundation; either version 2.1 of
+ * the License, or (at your option) any later version.
+ *
+ * This software is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this software; if not, write to the Free
+ * Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
+ * 02110-1301 USA, or see the FSF site: http://www.fsf.org.
+ */
+
 'use strict';
 
 var Events = require('events');
@@ -31,7 +51,6 @@ var TIMERS = require('./lib/Timers');
 
 function MqttClient() {
     this.ENUM = ENUM;
-    // this.id;
     Events.EventEmitter.call(this);
 }
 util.inherits(MqttClient, Events.EventEmitter);
@@ -102,7 +121,6 @@ function subscribe(params) {
 
 function unsubscribe(params) {
     var topics = params || [];
-    // console.log(params);
     var unsubscribe = Unsubscribe(params.token, topics);
 
     try {
@@ -153,42 +171,29 @@ function connect(params) {
 
 function onDataRecieved(data) {
     var that = this;
+    var decoded = {};
     console.log("Data received: ", data);
-
     console.log("Data type decoded", ENUM.getKeyByValue(ENUM.MessageType, (parser.decode(data)).getType()));
 
     try {
-        var decoded = parser.decode(data);
-
+        decoded = parser.decode(data);
     } catch (error) {
         console.log('Parser unadble to decode received data.');
     }
 
     if (decoded.getType() == ENUM.MessageType.CONNACK) {
         this.emit('mqttConnack', decoded);
-        // setInterval
-        // connectionStatus = ENUM.PingStatus.INITIALIZED;
-        // if (isMaster) {
-        //     TIMERS.releaseTimer(0);
-        //     var timer = Timer({
-        //         callback: function() {
-        //             ping.call(that);
-        //         },
-        //         interval: conntectionParams.keepalive * 1000
-        //     });
-        //     TIMERS.setTimer(0, timer);
-        // }
     }
+
     if (decoded.getType() == ENUM.MessageType.PINGRESP) {
         connectionStatus = ENUM.PingStatus.RECEIVED;
-        console.log("Pingresp received!");
+        // console.log("Pingresp received!");
         this.emit('mqttPingResp');
     }
 
     if (decoded.getType() == ENUM.MessageType.PUBACK) {
         var id = decoded.getPacketID();
         this.emit('mqttPuback', decoded, messages.pullMessage(id));
-        console.log("Puback received!");
     }
 
     if (decoded.getType() == ENUM.MessageType.PUBREC) {
@@ -207,7 +212,6 @@ function onDataRecieved(data) {
     if (decoded.getType() == ENUM.MessageType.PUBCOMP) {
         var id = decoded.getPacketID();
         this.emit('mqttPubcomp', decoded, messages.pullMessage(id));
-        console.log("Pubcomp received!");
     }
 
     if (decoded.getType() == ENUM.MessageType.SUBACK) {
@@ -263,16 +267,7 @@ function onDataRecieved(data) {
 }
 
 function ping() {
-    // if (connectionStatus == ENUM.PingStatus.SENT) {
-    //     this.emit('disconnected');
-    //     disconnect();
-    //     throw Error('Connection lost');
-    // }
-    // connectionStatus = ENUM.PingStatus.SENT;
-    // console.log('ping sent');
     var pingreq = Pingreq();
     var encPing = parser.encode(pingreq);
-    // connection.write(encPing);
     this.emit('mqttPing', encPing);
-
 }

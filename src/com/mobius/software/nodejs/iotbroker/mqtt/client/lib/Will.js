@@ -1,5 +1,24 @@
-'use strict'
+/**
+ * Mobius Software LTD
+ * Copyright 2015-2016, Mobius Software LTD
+ *
+ * This is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU Lesser General Public License as
+ * published by the Free Software Foundation; either version 2.1 of
+ * the License, or (at your option) any later version.
+ *
+ * This software is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this software; if not, write to the Free
+ * Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
+ * 02110-1301 USA, or see the FSF site: http://www.fsf.org.
+ */
 
+'use strict'
 
 function Will(newTopic, newContent, newRetain) {
     var topic;
@@ -14,8 +33,6 @@ function Will(newTopic, newContent, newRetain) {
     return {
 
         retrieveLength: function() {
-            // var len = topic.getLength();
-            // console.log("will.retrieveLength 17 str", len)
             return topic.getLength() + content.length + 4;
         },
 
@@ -46,7 +63,7 @@ function Will(newTopic, newContent, newRetain) {
         isValid: function() {
             return topic != null && topic.getLength() > 0 && content != null && topic.getQos() != null;
         },
-    }
+    };
 }
 
 module.exports = Will;

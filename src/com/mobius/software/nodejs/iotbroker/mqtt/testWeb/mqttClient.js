@@ -1,8 +1,26 @@
+/**
+ * Mobius Software LTD
+ * Copyright 2015-2016, Mobius Software LTD
+ *
+ * This is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU Lesser General Public License as
+ * published by the Free Software Foundation; either version 2.1 of
+ * the License, or (at your option) any later version.
+ *
+ * This software is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this software; if not, write to the Free
+ * Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
+ * 02110-1301 USA, or see the FSF site: http://www.fsf.org.
+ */
+
 "use strict";
 var args = process.argv.slice(2);
-
 var NET = require('./net.js');
-
 var express = require('express');
 var bodyParser = require('body-parser');
 var mqtt = require('../client/mqtt');
@@ -13,38 +31,15 @@ var Datastore = require('nedb');
 var TOKENS = require('../client/lib/Tokens');
 var TIMERS = require('../client/lib/Timers');
 var Timer = require('../client/lib/Timer');
-// var bus = require('servicebus').bus();
-var bus = require('../client/lib/bus');
+var bus = require('servicebus').bus();
 
 const cluster = require('cluster');
 const numCPUs = args[0] || require('os').cpus().length;
 
-var worker = [];
 var connectionParams = {};
-
-var Keys = function Keys() {
-    var keys = [];
-    var index = 0;
-    var count = 0;
-    this.getKey = function() {
-        var i = index % count;
-        index++;
-        return keys[i];
-    }
-    this.setKeys = function(data) {
-        keys = Object.keys(data);
-        count = keys.length;
-    }
-}
-
-var connections = {};
-var timers = {};
-var tokens = {};
-var db = new Datastore({ filename: 'mqttData' });
-// db.loadDatabase();
+var worker = [];;
 if (cluster.isMaster) {
     if (!module.parent) {
-        // console.log('MASTER');
         for (var i = 0; i < numCPUs; i++) {
             worker[i] = cluster.fork();
         }
@@ -53,13 +48,15 @@ if (cluster.isMaster) {
         console.log(`worker ${worker.process.pid} died`);
     });
 } else {
+    var connections = {};
+    var timers = {};
+    var tokens = {};
+    var db = new Datastore({ filename: 'mqttData' });
     var CLIENT = {};
     var tokens = {};
     var pingTimeout = {};
-    // var bus = require('../client/lib/bus');
-    setTimeout(function() {
 
-        // console.log('MQTT sub worker runned id:', cluster.worker.id);
+    setTimeout(function() {
 
         bus.listen('mqtt.connect', function(msg) {
             bus.send('net.newSocket', msg);
@@ -88,13 +85,11 @@ if (cluster.isMaster) {
         bus.subscribe('mqtt.subscribe', function(msg) {
             if (typeof CLIENT[msg.username] == 'undefined') return;
             msg.params.token = tokens[msg.username].getToken();
-
             CLIENT[msg.username].Subscribe(msg.params);
         });
 
         bus.subscribe('mqtt.unsubscribe', function(msg) {
             if (typeof CLIENT[msg.username] == 'undefined') return;
-            console.log(msg);
             msg.params.token = tokens[msg.username].getToken();
             CLIENT[msg.username].Unsubscribe(msg.params);
         });
@@ -105,7 +100,6 @@ if (cluster.isMaster) {
             tokens[msg.params.connection.username] = new TOKENS();
 
             CLIENT[msg.params.connection.username].on('mqttConnect', function(data) {
-                // console.log('!!!!!!OPENED', msg)
                 bus.publish('net.sendData', {
                     payload: data,
                     username: this.id,
@@ -113,6 +107,7 @@ if (cluster.isMaster) {
                     parentEvent: 'mqttConnect'
                 });
             });
+
             CLIENT[msg.params.connection.username].on('mqttDisconnect', function(data) {
                 bus.publish('net.sendData', {
                     payload: data,
@@ -137,16 +132,21 @@ if (cluster.isMaster) {
                     parentEvent: 'mqttConnack'
                 });
                 db.loadDatabase();
+                if (data.getReturnCode() == 'ACCEPTED') {
+                    db.remove({ type: 'connack' }, { multi: true }, function(err, docs) {
+                        db.insert({
+                            type: 'connack',
+                            connectionId: that.id,
+                            id: guid()
+                        });
+                    });
+                    // bus.send
+                    CLIENT[this.id].Ping();
+                } else {
+                    db.remove({ type: 'connack' }, { multi: true }, function(err, docs) {
 
-                db.remove({ type: 'connack' }, { multi: true }, function(err, docs) {
-                    db.insert({
-                        type: 'connack',
-                        connectionId: that.id,
-                        id: guid()
-                    })
-                });
-                // bus.send
-                CLIENT[this.id].Ping();
+                    });
+                }
             });
 
             CLIENT[msg.params.connection.username].on('mqttPing', function(data) {
@@ -231,8 +231,8 @@ if (cluster.isMaster) {
                     id: guid(),
                     time: (new Date()).getTime()
                 }
-                db.loadDatabase();
 
+                db.loadDatabase();
                 db.insert(outMessage);
             });
 
@@ -255,8 +255,8 @@ if (cluster.isMaster) {
                     id: guid(),
                     time: (new Date()).getTime()
                 }
-                db.loadDatabase();
 
+                db.loadDatabase();
                 db.insert(outMessage);
             });
 
@@ -277,8 +277,8 @@ if (cluster.isMaster) {
                 });
                 tokens[this.id].releaseToken(data.getPacketID());
                 var subscribtions = [];
-                db.loadDatabase();
 
+                db.loadDatabase();
                 for (var i = 0; i < msg.topics.length; i++) {
                     var subscribeData = {
                         type: 'subscribtion',
@@ -309,8 +309,8 @@ if (cluster.isMaster) {
                     username: this.id,
                     parentEvent: 'mqttUnsuback'
                 });
-                db.loadDatabase();
 
+                db.loadDatabase();
                 tokens[this.id].releaseToken(data.getPacketID());
                 for (var i = 0; i < msg.length; i++) {
                     db.remove({ 'type': 'subscribtion', 'subscribtion.topic': msg[i] }, { multi: true });
@@ -331,14 +331,13 @@ if (cluster.isMaster) {
                     id: guid(),
                     time: (new Date()).getTime()
                 }
-                db.loadDatabase();
 
+                db.loadDatabase();
                 db.insert(inMessage);
             });
 
             CLIENT[msg.params.connection.username].on('mqttPubackOut', function(data, msg) {
                 if (!data) return;
-                console.log('mqttPubackOut:', msg);
                 bus.publish('net.sendData', {
                     payload: data,
                     username: this.id,
@@ -357,8 +356,8 @@ if (cluster.isMaster) {
                     id: guid(),
                     time: (new Date()).getTime()
                 }
-                db.loadDatabase();
 
+                db.loadDatabase();
                 db.insert(inMessage);
             });
 
@@ -370,7 +369,6 @@ if (cluster.isMaster) {
                     packetID: msg.packetID,
                     parentEvent: 'mqttPubrecOut'
                 });
-
             });
 
             CLIENT[msg.params.connection.username].on('mqttPubcompOut', function(data, msg) {
@@ -381,6 +379,7 @@ if (cluster.isMaster) {
                     packetID: msg.packetID,
                     parentEvent: 'mqttPubcompOut'
                 });
+
                 var inMessage = {
                     type: 'message',
                     message: {
@@ -393,8 +392,8 @@ if (cluster.isMaster) {
                     id: guid(),
                     time: (new Date()).getTime()
                 }
-                db.loadDatabase();
 
+                db.loadDatabase();
                 db.insert(inMessage);
             });
 
@@ -422,7 +421,6 @@ if (cluster.isMaster) {
 }
 
 function send(a, b) {
-    console.log(bus);
     bus.send(a, b);
 }
 
@@ -431,11 +429,8 @@ function publish(a, b) {
 }
 
 function getData(req, res) {
-    // console.log(req);
     db.loadDatabase();
-
     db.find(req, function(err, docs) {
-        // console.log(err, docs);
         if (!!err)
             res.send({ 'Error:': err });
         res.send(JSON.stringify(docs));
