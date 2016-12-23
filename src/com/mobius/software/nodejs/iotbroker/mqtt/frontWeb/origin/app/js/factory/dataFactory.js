@@ -1,6 +1,7 @@
 (function() {
     'use strict';
 
+    dataFactory.$inject = ["$http", "mqttConstants", "$location", "toastr", "$q"];
     angular
         .module('mqtt')
         .factory('dataFactory', dataFactory)

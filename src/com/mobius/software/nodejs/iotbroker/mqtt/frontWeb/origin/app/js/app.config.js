@@ -1,6 +1,7 @@
 (function() {
     'use strict';
 
+    ConfigFn.$inject = ["$locationProvider", "$routeProvider", "$httpProvider"];
     angular
         .module('mqtt')
         .config(ConfigFn)

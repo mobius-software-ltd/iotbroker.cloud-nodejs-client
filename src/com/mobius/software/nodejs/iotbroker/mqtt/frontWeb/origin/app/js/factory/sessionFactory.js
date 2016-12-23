@@ -1,6 +1,7 @@
 (function() {
     'use strict';
 
+    sessionFactory.$inject = ["toastr", "$location", "dataFactory"];
     angular
         .module('mqtt')
         .factory('sessionFactory', sessionFactory)

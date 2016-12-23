@@ -1,6 +1,7 @@
 (function() {
     'use strict';
 
+    navigation.$inject = ["$location", "$rootScope"];
     angular
         .module('mqtt')
         .directive('navigation', navigation);

@@ -1,6 +1,7 @@
 (function() {
     'use strict';
 
+    sendCtrl.$inject = ["dataFactory", "sessionFactory"];
     angular
         .module('mqtt')
         .controller('sendCtrl', sendCtrl)

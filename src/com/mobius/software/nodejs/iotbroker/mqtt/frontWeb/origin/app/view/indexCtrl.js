@@ -1,6 +1,7 @@
 (function() {
     'use strict';
 
+    indexCtrl.$inject = ["$scope", "$location", "dataFactory", "sessionFactory"];
     angular
         .module('mqtt')
         .controller('indexCtrl', indexCtrl)

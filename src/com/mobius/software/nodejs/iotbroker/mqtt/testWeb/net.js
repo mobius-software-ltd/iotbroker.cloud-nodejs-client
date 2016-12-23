@@ -40,6 +40,7 @@ if (cluster.isMaster) {
     setTimeout(function() {
 
         var connections = {};
+        var connectionParams = {};
         var timers = {};
         var tokens = {};
 
@@ -57,7 +58,19 @@ if (cluster.isMaster) {
                 });
             } catch (e) {
                 console.log('Unable to establish connection to the server. Error: ', e);
+                if (typeof timers[msg.params.connection.username] != 'undefined') {
+                    timers[msg.params.connection.username].releaseTimer(msg.packetID);
+                    delete timers[msg.params.connection.username];
+                }
+                if (typeof connections[msg.params.connection.username] != 'undefined') {
+                    connections[msg.params.connection.username].end();
+                    delete connections[msg.params.connection.username];
+                }
+                if (typeof connectionParams[msg.params.connection.username] != 'undefined')
+                    delete connectionParams[msg.params.connection.username];
+                return;
             }
+            connectionParams[msg.params.connection.username] = msg;
             connections[msg.params.connection.username] = socket;
             timers[msg.params.connection.username] = new TIMERS();
             bus.send('mqtt.socketOpened', msg);
@@ -68,14 +81,44 @@ if (cluster.isMaster) {
             if (msg.parentEvent != 'mqttDisconnect' && msg.parentEvent != 'mqttPubackOut' && msg.parentEvent != 'mqttPubrecOut' && msg.parentEvent != 'mqttPubcompOut') {
                 var newTimer = Timer({
                     callback: function() {
-                        connections[msg.username].write(Buffer.from(msg.payload));
+                        try {
+                            connections[msg.username].write(Buffer.from(msg.payload));
+                        } catch (e) {
+                            console.log('Unable to establish connection to the server. Error: ', e);
+                            if (typeof timers[msg.username] != 'undefined') {
+                                timers[msg.username].releaseTimer(msg.packetID);
+                                delete timers[msg.username];
+                            }
+                            if (typeof connections[msg.username] != 'undefined') {
+                                connections[msg.username].end();
+                                delete connections[msg.username];
+                            }
+                            if (typeof connectionParams[msg.username] != 'undefined')
+                                delete connectionParams[msg.username];
+                            return;
+                        }
                     },
                     interval: connections[msg.username].connection.keepalive * 1000
                 });
                 timers[msg.username].setTimer(msg.packetID, newTimer);
             }
-
-            connections[msg.username].write(Buffer.from(msg.payload));
+            try {
+                connections[msg.username].write(Buffer.from(msg.payload));
+            } catch (e) {
+                console.log('Unable to establish connection to the server. Error: ', e);
+                if (typeof timers[msg.username] != 'undefined') {
+                    timers[msg.username].releaseTimer(msg.packetID);
+                    delete timers[msg.username];
+                }
+                if (typeof connections[msg.username] != 'undefined') {
+                    connections[msg.username].end();
+                    delete connections[msg.username];
+                }
+                if (typeof connectionParams[msg.username] != 'undefined')
+                    delete connectionParams[msg.username];
+                return;
+            }
+            // connections[msg.username].write(Buffer.from(msg.payload));
         });
 
         bus.subscribe('net.done', function(msg) {
@@ -84,8 +127,9 @@ if (cluster.isMaster) {
 
             if (msg.parentEvent == 'mqttDisconnect') {
                 connections[msg.username].end();
-                delete timers[msg.packetID];
-                delete connections[msg.packetID];
+                delete timers[msg.username];
+                delete connections[msg.username];
+                delete connectionParams[msg.username];
             }
 
         });
