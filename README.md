@@ -201,4 +201,6 @@ Finally you should go to the URL where it is deployed. Usually it is http://loca
 
 When you finished with deployment, you can log in to your account and connect to the server. Please note that at this stage it is not possible to register as a client. You can log in to your existing account.
 
+IoTBroker Node.js Client is developed by [Mobius Software](http://mobius-software.com).
+
 ## [License](LICENSE.md)
