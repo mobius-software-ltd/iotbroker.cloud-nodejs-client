@@ -1,1 +1,0 @@
-{"version":3,"sources":["js/app.module.js"],"names":[],"mappings":"AAAA,CAAC,WAAW;IACR;;IAEA,QAAQ,OAAO,QAAQ;QACnB,WAAW,aAAa,gBAAgB;;KAE3C","sourcesContent":["(function() {\n    'use strict';\n\n    angular.module('mqtt', [\n        'ngRoute', 'ngAnimate', 'ui.bootstrap', 'toastr'\n    ]);\n})();"],"file":"../../js/app.module.js"}

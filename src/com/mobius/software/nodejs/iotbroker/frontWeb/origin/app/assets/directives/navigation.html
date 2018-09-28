@@ -1,0 +1,32 @@
+<nav ng-hide="!Ctrl.auth" class="navigation-fixed-bottom ">
+    <div class="container">
+
+        <ul class="navigation-item navigation-item col-xs-6 col-xs-offset-3">
+            <li>
+                <a ng-href="topics" ng-class="(Ctrl.route == '/topics')?'active':''">
+                    <figure>
+                        <img ng-src="img/ic_tab_tl_selected.png" alt="">
+                        <figcaption>Topics List</figcaption>
+                    </figure>
+                </a>
+            </li>
+            <li>
+                <a ng-href="send" ng-class="(Ctrl.route == '/send')?'active':''">
+                    <figure>
+                        <img ng-src="img/ic_tab_sm_selected.png" alt="">
+                        <figcaption>Send Message</figcaption>
+                    </figure>
+                </a>
+            </li>
+            <li>
+                <a ng-href="messages" ng-class="(Ctrl.route == '/messages')?'active':''">
+                    <figure>
+                        <img ng-src="img/ic_tab_ml_selected.png" alt="">
+                        <figcaption>Messages List</figcaption>
+                    </figure>
+                </a>
+            </li>
+
+        </ul>
+    </div>
+</nav>

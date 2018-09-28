@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en" ng-app="mqtt">
+
+<head>
+    <meta charset="UTF-8">
+    <base href="/">
+    <title>Web client</title>
+    <link rel="stylesheet" href="css/vendor.css">
+    <script src="js/vendor.js"></script>
+    <link rel="stylesheet" href="css/main.css">
+    <script src="js/angular.js"></script>
+</head>
+
+<body ng-controller="indexCtrl as indxCtrl">
+    <navigation></navigation>
+    <main class="container">
+        <ng-view></ng-view>
+    </main>
+</body>
+
+</html>

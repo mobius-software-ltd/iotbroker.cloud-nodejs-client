@@ -1,0 +1,148 @@
+<div class="login col-xs-10 col-xs-offset-1 col-md-6 col-md-offset-3">
+    <div class="login-title">
+        <h1>Log In</h1>
+    </div>
+    <form action="" class="login-form" name="connect">
+        <h2 class="login-subtitle">Registration info</h2>
+        <div class="login-row form-group-lg">
+            <div class="login-formElements clearfix">
+                <label for="" class="col-xs-6"><img ng-src="img/login_qos.png" />Protocol</label>
+                <div class="col-xs-6">
+                   
+                    <select class="form-control" ng-model="Ctrl.protocolType" required>
+                        <option selected value="{{item.id}}" ng-repeat="item in Ctrl.types">{{item.name}}</option>                       
+                    </select>
+                </div>
+            </div>
+        </div>
+        <div ng-if="Ctrl.protocolType == 1 || Ctrl.protocolType == 4" class="login-row form-group-lg">
+            <div class="login-formElements clearfix">
+                <label for="" class="col-xs-6"><img ng-src="img/login_user_name.png" />User name</label>
+                <div class="col-xs-6">
+                    <input type="text" class="form-control" placeholder="username" ng-model="Ctrl.login.username" required>
+                </div>
+            </div>
+        </div>
+        <div ng-if="Ctrl.protocolType == 1 || Ctrl.protocolType == 4" class="login-row form-group-lg">
+            <div class="login-formElements clearfix">
+                <label for="" class="col-xs-6"><img ng-src="img/login_pass.png" />Password</label>
+                <div class="col-xs-6">
+                    <input type="password" class="col-xs-6 form-control" placeholder="Password" ng-model="Ctrl.login.password" required>
+                </div>
+            </div>
+        </div>
+
+        <div class="login-row form-group-lg">
+            <div class="login-formElements clearfix">
+                <label for="" class="col-xs-6"><img ng-src="img/login_clienid.png" />Client ID</label>
+                <div class="col-xs-6">
+                    <input type="text" class="col-xs-6 form-control" placeholder="Client ID" ng-model="Ctrl.login.clientID" required>
+                </div>
+            </div>
+        </div>
+
+        <div class="login-row form-group-lg">
+            <div class="login-formElements clearfix">
+                <label for="" class="col-xs-6"><img ng-src="img/login_server_host.png" />Server host</label>
+                <div class="col-xs-6">
+                    <input type="text" class="col-xs-6 form-control" placeholder="server host" ng-model="Ctrl.login.host" required>
+                </div>
+            </div>
+        </div>
+
+        <div class="login-row form-group-lg">
+            <div class="login-formElements clearfix">
+                <label for="" class="col-xs-6"><img ng-src="img/login_qos.png" />Port</label>
+                <div class="col-xs-6">
+                    <input type="text" class="col-xs-6 form-control" placeholder="Port" ng-model="Ctrl.login.port" required>
+                </div>
+            </div>
+        </div>
+        
+        <h2 ng-if="Ctrl.protocolType == 1 || Ctrl.protocolType == 2" class="login-subtitle">Settings</h2>        
+        <div ng-if="Ctrl.protocolType == 1 || Ctrl.protocolType == 2" class="login-row form-group-lg">
+            <div class="login-formElements clearfix">
+                <label for="" class="col-xs-6"><img ng-src="img/login_clean_session.png" />Clean session</label>
+                <!--<input type="text" class="col-xs-6 form-control" placeholder="Port">-->
+                <label class="switch">
+                <input type="checkbox" ng-model="Ctrl.login.isClean">
+                <div class="slider round"></div>
+            </label>
+            </div>
+        </div>
+        <div ng-if="Ctrl.protocolType == 1 || Ctrl.protocolType == 2 || Ctrl.protocolType == 3" class="login-row form-group-lg">
+            <div class="login-formElements clearfix">
+                <label for="" class="col-xs-6"><img ng-src="img/login_keep_alive.png" />Keepalive</label>
+                <div class="col-xs-6">
+                    <input type="text" class="col-xs-6 form-control" placeholder="Keepalive" ng-model="Ctrl.login.keepalive" required></div>
+            </div>
+        </div>
+        <div  ng-if="Ctrl.protocolType == 1 || Ctrl.protocolType == 2" class="login-row form-group-lg">
+            <div class="login-formElements clearfix">
+                <label for="" class="col-xs-6"><img ng-src="img/login_will.png" />Will</label>
+                <div class="col-xs-6">
+                    <input data-toggle="modal" data-target="#will" ng-readonly="Ctrl.login.will.content" type="text" class="col-xs-6 form-control" placeholder="Will" ng-model="Ctrl.login.will.content"></div>
+            </div>
+        </div>
+        <div  ng-if="Ctrl.protocolType == 1 || Ctrl.protocolType == 2" class="login-row form-group-lg">
+            <div class="login-formElements clearfix">
+                <label for="" class="col-xs-6"><img ng-src="img/login_will_topic.png" />Will Topic</label>
+                <div class="col-xs-6">
+                    <input type="text" class="col-xs-6 form-control" placeholder="Will Topic" ng-model="Ctrl.login.will.topic"></div>
+            </div>
+        </div>
+        <div  ng-if="Ctrl.protocolType == 1 || Ctrl.protocolType == 2" class="login-row form-group-lg">
+            <div class="login-formElements clearfix">
+                <label for="" class="col-xs-6"><img ng-src="img/login_retain.png" />Retain</label>
+                <!--<input type="text" class="col-xs-6 form-control" placeholder="Port">-->
+                <label class="switch">
+                <input type="checkbox" ng-model="Ctrl.login.will.retain">
+                <div class="slider round"></div>
+            </label>
+            </div>
+        </div>
+        <div  ng-if="Ctrl.protocolType == 1 || (Ctrl.protocolType == 2 && Ctrl.login.will.topic && Ctrl.login.will.content)" class="login-row form-group-lg">
+            <div class="login-formElements clearfix">
+                <label for="" class="col-xs-6"><img ng-src="img/login_qos.png" />QoS</label>
+                <div class="col-xs-6">
+                    <input type="text" class="col-xs-6 form-control" placeholder="QoS" ng-model="Ctrl.login.will.qos" required></div>
+                    <!-- <select class="form-control" ng-model="Ctrl.login.will.qos" required>
+                        <option selected value="{{item}}" ng-repeat="item in [0,1,2]">{{item}}</option>                       
+                    </select> -->
+            </div>
+        </div>      
+
+        <button class="login-row login-button form-group-lg" type="button" ng-disabled="connect.$invalid" ng-click="Ctrl.connect()">
+            <p>Log In</p>
+            <!--<div class="login-formElements clearfix">-->
+            <!--<label for="" class="col-xs-6"><img ng-src="" /></label>-->
+            <!--<input type="button" class=" col-xs-12 btn btn-info btn-lg" value="Log In"></div>-->
+            <!--</div>-->
+            </button>
+    </form>
+    </div>
+
+
+    <!-- Modal add new case -->
+    <div class="modal fade" id="will" tabindex="-1" role="dialog" aria-labelledby="myModalLabel">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                    <h4 class="modal-title" id="myModalLabel">Will</h4>
+                </div>
+                <div class="modal-body">   
+                        <div class="form-group">
+                            <textarea type="text" class="form-control" id="will" rows="7" ng-model="Ctrl.login.will.content" required></textarea>
+                        </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn iotBtn" class="close" data-dismiss="modal" data-dismiss="modal">Ok</button>
+
+                </div>
+            
+            </div>
+        </div>
+    </div>
