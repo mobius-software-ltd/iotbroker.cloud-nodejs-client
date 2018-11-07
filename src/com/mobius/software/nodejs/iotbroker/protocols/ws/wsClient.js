@@ -20,11 +20,10 @@
 
 "use strict";
 var args = process.argv.slice(2);
-var NET = require('./net');
+var NET = require('./websocket');
 var express = require('express');
 var bodyParser = require('body-parser');
-var mqtt = require('./mqtt');
-var MQParser = require('./MQParser');
+var ws = require('./ws');
 var guid = require('./lib/guid');
 var net = require('net');
 var Datastore = require('nedb');
@@ -32,6 +31,7 @@ var TOKENS = require('./lib/Tokens');
 var TIMERS = require('./lib/Timers');
 var Timer = require('./lib/Timer');
 var bus = require('servicebus').bus();
+var ENUM = require('./lib/enum');
 
 const cluster = require('cluster');
 const numCPUs = args[0] || require('os').cpus().length;
@@ -53,98 +53,94 @@ if (cluster.isMaster) {
     var tokens = {};
     var db = new Datastore({ filename: 'data' });
     var CLIENT = {};
-    var tokens = {};
     var pingTimeout = {};
    
     setTimeout(function() {
       
-        bus.listen('mqtt.connect', function(msg) {            
-            bus.send('net.newSocket', msg);
+        bus.listen('ws.connect', function(msg) {
+            bus.send('wss.newSocket', msg);
             db.loadDatabase();
             db.remove({ 'type': 'connection', 'connection.username': msg.params.connection.username }, { multi: true });
-
-            if(msg.params.connection.isClean) {
-                db.remove({ 'type': 'subscribtion', 'subscribtion.connectionId': msg.params.connection.username, 'subscribtion.clientID': msg.params.connection.clientID }, { multi: true });
-              //  db.remove({ 'type': 'message', 'message.connectionId': msg.params.connection.username, 'message.clientID': msg.params.connection.clientID }, { multi: true });
-            }
-
             db.insert(msg.params);
         });
 
-        bus.subscribe('mqtt.disconnect', function(msg) {
+        bus.subscribe('ws.disconnect', function(msg) {
+           
             if (typeof CLIENT[msg.unique] == 'undefined') return;
             CLIENT[msg.unique].id = msg.username;
+            var packetID  = tokens[msg.unique].getToken();
             db.loadDatabase();
             db.remove({ 'type': 'connection', 'connection.username': msg.username }, { multi: true });
-            CLIENT[msg.unique].Disconnect();
+            CLIENT[msg.unique].Disconnect(packetID);
         });
 
-        bus.subscribe('mqtt.publish', function(msg) {
+        bus.subscribe('ws.publish', function(msg) {           
             if (typeof CLIENT[msg.unique] == 'undefined') return;
             if (msg.params.qos != 0)
                 msg.params.token = tokens[msg.unique].getToken();
 
+             CLIENT[msg.unique].publish = msg;
             CLIENT[msg.unique].id = msg.username;
-            CLIENT[msg.unique].Publish(msg.params);
+            CLIENT[msg.unique].Publish(msg);
         });
 
-        bus.subscribe('mqtt.subscribe', function(msg) {
-           if (typeof CLIENT[msg.unique] == 'undefined') return;
-            msg.params.token = tokens[msg.unique].getToken();
+        bus.subscribe('ws.subscribe', function(msg) {
+               if (typeof CLIENT[msg.unique] == 'undefined') return;         
+            msg.params.token = tokens[msg.unique].getToken();           
             CLIENT[msg.unique].Subscribe(msg.params);
         });
 
-        bus.subscribe('mqtt.unsubscribe', function(msg) {
+        bus.subscribe('ws.unsubscribe', function(msg) {
             if (typeof CLIENT[msg.unique] == 'undefined') return;
-            msg.params.token = tokens[msg.unique].getToken();
-            CLIENT[msg.unique].Unsubscribe(msg.params);
+            var token = tokens[msg.unique].getToken();
+            CLIENT[msg.unique].Unsubscribe(msg.params, token);
         });
 
-        bus.listen('mqtt.socketOpened', function(msg) {
-            CLIENT[msg.params.connection.unique] = new mqtt();
+        bus.listen('ws.socketOpened', function(msg) {
+            CLIENT[msg.params.connection.unique] = new ws();
             CLIENT[msg.params.connection.unique].id = msg.params.connection.username;
-            CLIENT[msg.params.connection.unique].clientID = msg.params.connection.clientID;
             CLIENT[msg.params.connection.unique].unique = msg.params.connection.unique;
             tokens[msg.params.connection.unique] = new TOKENS();
-
-            CLIENT[msg.params.connection.unique].on('mqttConnect', function(data) {
-                bus.publish('net.sendData', {
+            CLIENT[msg.params.connection.unique].on('wsConnect', function(data) {            
+                bus.publish('wss.sendData', {
                     payload: data,
                     username: this.id,
-                    packetID: 0,
-                    parentEvent: 'mqttConnect',
+                    packetID: 1,
+                    parentEvent: 'wsConnect',
                     unique: this.unique
                 });
             });
 
-            CLIENT[msg.params.connection.unique].on('mqttDisconnect', function(data) {
-                bus.publish('net.sendData', {
+            CLIENT[msg.params.connection.unique].on('wsDisconnect', function(data, id) {
+                bus.publish('wss.sendData', {
                     payload: data,
                     username: this.id,
-                    packetID: 0,
-                    parentEvent: 'mqttDisconnect',
+                    packetID: id,
+                    parentEvent: 'wsDisconnect',
                     unique: this.unique
                 });
-                bus.publish('net.done', {
-                    packetID: 0,
+                bus.publish('wss.done', {
+                    packetID: id,
                     username: this.id,
-                    parentEvent: 'mqttDisconnect',
+                    parentEvent: 'wsDisconnect',
                     unique: this.unique
                 });
+               
                 delete CLIENT[this.unique];
                 delete tokens[this.unique];
+                delete timers[this.unique];
             });
 
-            CLIENT[msg.params.connection.unique].on('mqttConnack', function(data) {
+            CLIENT[msg.params.connection.unique].on('wsConnack', function(data) {   
                 var that = this;
-                bus.publish('net.done', {
-                    packetID: data.getPacketID(),
-                    username: this.id,
-                    parentEvent: 'mqttConnack',
-                    unique: this.unique
+                bus.publish('wss.done', {
+                    packetID: 1,
+                    username: data.username,
+                    parentEvent: 'wsConnack',
+                    unique: data.unique
                 });
                 db.loadDatabase();
-                if (data.getReturnCode() == 'ACCEPTED') {
+                if (data.payload.data.returnCode == ENUM.ConnackCode.ACCEPTED) {
                     db.remove({ type: 'connack' }, { multi: true }, function(err, docs) {
                         db.insert({
                             type: 'connack',
@@ -153,8 +149,7 @@ if (cluster.isMaster) {
                             id: guid()
                         });
                     });
-                    // bus.send
-                    CLIENT[this.unique].Ping();
+                    CLIENT[this.unique].Ping();                  
                 } else {
                     db.remove({ type: 'connack' }, { multi: true }, function(err, docs) {
 
@@ -162,97 +157,117 @@ if (cluster.isMaster) {
                 }
             });
 
-            CLIENT[msg.params.connection.unique].on('mqttPing', function(data) {
-               
-
-                bus.publish('net.sendData', {
+            CLIENT[msg.params.connection.unique].on('wsPing', function(data) {
+                bus.publish('wss.sendData', {
                     payload: data,
                     username: this.id,
                     packetID: 0,
-                    parentEvent: 'mqttPing',
+                    parentEvent: 'wsPing',
                     unique: this.unique
                 });
-                pingTimeout = setTimeout(function() {
-                    bus.publish('mqtt.disconnect', {
+                pingTimeout = setTimeout(function() {                                      
+                    bus.publish('ws.disconnect', {
                         msg: 'disconnect',
                         username: this.id,
                         unique: this.unique
                     });
-                }, msg.params.connection.keepalive * 2 * 1000);
+                }, msg.params.connection.keepalive * 10 * 1000);
             });
 
-            CLIENT[msg.params.connection.unique].on('mqttPubrec', function(packetID) {
-                bus.publish('net.done', {
+            CLIENT[msg.params.connection.unique].on('wsPubrec', function(packetID) {
+                bus.publish('wss.done', {
                     packetID: packetID,
                     username: this.id,
-                    parentEvent: 'mqttPubrec',
+                    parentEvent: 'wsPubrec',
                     unique: this.unique
                 });
             });
 
-            CLIENT[msg.params.connection.unique].on('mqttPublish', function(data, msg, packetID) {
-                bus.publish('net.sendData', {
+            CLIENT[msg.params.connection.unique].on('wsPublish', function(data, msg, packetID, parent) {             
+                bus.publish('wss.sendData', {
                     payload: data,
                     username: this.id,
                     packetID: packetID,
-                    parentEvent: 'mqttPublish',
+                    parentEvent: parent,
                     unique: this.unique
                 });
-                bus.publish('net.done', {
+                bus.publish('wss.done', {
                     packetID: packetID,
                     username: this.id,
-                    parentEvent: 'mqttPublish',
+                    parentEvent: 'wsPublish',
                     unique: this.unique
                 });
                 if (msg.qos == 0) {
                     var outMessage = {
-                        type: 'message',
+                        type: 'wsmessage',
                         message: {
-                            topic: msg.topic,
-                            qos: msg.qos,
-                            content: msg.content,
+                            topic:  CLIENT[this.unique].publish.params.topic,
+                            qos: CLIENT[this.unique].publish.params.qos,
+                            content: CLIENT[this.unique].publish.params.content,
                             connectionId: this.id,
                             direction: 'out',
-                            unique: this.unique,
-                            clientID: this.clientID
+                            unique: this.unique
                         },
                         id: guid(),
                         time: (new Date()).getTime()
                     }
                     db.loadDatabase();
-
                     db.insert(outMessage);
                 }
             });
 
-            CLIENT[msg.params.connection.unique].on('mqttPubrel', function(data, packetID) {
-                bus.publish('net.sendData', {
-                    payload: data,
+            CLIENT[msg.params.connection.unique].on('wsPubrel', function(data, packetID) {
+                bus.publish('wss.sendData', {
+                    payload:  data,
                     username: this.id,
                     packetID: packetID,
-                    parentEvent: 'mqttPubrel',
+                    parentEvent: 'wsPubrel',
                     unique: this.unique
                 });
             });
 
-            CLIENT[msg.params.connection.unique].on('mqttPuback', function(data, msg) {
-                bus.publish('net.done', {
-                    packetID: data.getPacketID(),
+            CLIENT[msg.params.connection.unique].on('wsPuback', function(data, id, msg) {
+                bus.publish('wss.done', {
+                    packetID: id,
                     username: this.id,
-                    parentEvent: 'mqttPuback',
+                    parentEvent: 'wsPuback',
                     unique: this.unique
                 });
-                tokens[this.unique].releaseToken(data.getPacketID());
+                tokens[this.unique].releaseToken(id);
                 var outMessage = {
-                    type: 'message',
+                    type: 'wsmessage',
                     message: {
-                        topic: msg.topic,
-                        qos: msg.qos,
-                        content: msg.content,
+                        topic:  CLIENT[this.unique].publish.params.topic,
+                        qos: CLIENT[this.unique].publish.params.qos,
+                        content: CLIENT[this.unique].publish.params.content,
                         connectionId: this.id,
                         direction: 'out',
-                        unique: this.unique,
-                        clientID: this.clientID
+                        unique: this.unique
+                    },
+                    id: guid(),
+                    time: (new Date()).getTime()
+                }
+                db.loadDatabase();
+                db.insert(outMessage);
+            });
+
+            CLIENT[msg.params.connection.unique].on('wsPubcomp', function(packetID, msg) {
+                bus.publish('wss.done', {
+                    packetID: packetID,
+                    username: this.id,
+                    parentEvent: 'wsPubcomp',
+                    unique: this.unique
+                });
+                tokens[this.unique].releaseToken(packetID);
+                var outMessage = {
+                    type: 'wsmessage',
+                    message: {
+                        topic:  CLIENT[this.unique].publish.params.topic,
+                        qos: CLIENT[this.unique].publish.params.qos,
+                        content: CLIENT[this.unique].publish.params.content,
+                        connectionId: this.id,
+                        direction: 'out',
+                        unique: this.unique
                     },
                     id: guid(),
                     time: (new Date()).getTime()
@@ -262,62 +277,36 @@ if (cluster.isMaster) {
                 db.insert(outMessage);
             });
 
-            CLIENT[msg.params.connection.unique].on('mqttPubcomp', function(data, msg) {
-                bus.publish('net.done', {
-                    packetID: data.getPacketID(),
-                    username: this.id,
-                    parentEvent: 'mqttPubcomp',
-                    unique: this.unique
-                });
-                tokens[this.unique].releaseToken(data.getPacketID());
-                var outMessage = {
-                    type: 'message',
-                    message: {
-                        topic: msg.topic,
-                        qos: msg.qos,
-                        content: msg.content,
-                        connectionId: this.id,
-                        direction: 'out',
-                        unique: this.unique,
-                        clientID: this.clientID
-                    },
-                    id: guid(),
-                    time: (new Date()).getTime()
-                }
-
-                db.loadDatabase();
-                db.insert(outMessage);
-            });
-
-            CLIENT[msg.params.connection.unique].on('mqttSubscribe', function(data, packetID) {
-                bus.publish('net.sendData', {
+            CLIENT[msg.params.connection.unique].on('wsSubscribe', function(data, packetID) {
+                bus.publish('wss.sendData', {
                     payload: data,
                     username: this.id,
                     packetID: packetID,
-                    parentEvent: 'mqttSubscribe',
+                    parentEvent: 'wsSubscribe',
                     unique: this.unique
                 });
             });
 
-            CLIENT[msg.params.connection.unique].on('mqttSuback', function(data, msg) {
-                bus.publish('net.done', {
-                    packetID: data.getPacketID(),
+            CLIENT[msg.params.connection.unique].on('wsSuback', function(data, msg) {               
+                bus.publish('wss.done', {
+                    packetID: data.payload.data.packetID,
                     username: this.id,
-                    parentEvent: 'mqttSuback',
+                    parentEvent: 'wsSuback',
                     unique: this.unique
                 });
-                tokens[this.unique].releaseToken(data.getPacketID());
+                tokens[this.unique].releaseToken(data.payload.data.packetID);
                 var subscribtions = [];
-                var clientID = this.clientID
+
                 db.loadDatabase();
+               // if(data.payload.data.returnCode)
+               if(msg.topics)
                 for (var i = 0; i < msg.topics.length; i++) {
                     var subscribeData = {
-                        type: 'subscribtion',
+                        type: 'wssubscribtion',
                         subscribtion: {
-                            topic: msg.topics[i].topic,
-                            qos: msg.topics[i].qos,
+                            topic: msg.topics[i].topic ? msg.topics[i].topic : null,
+                            qos: msg.topics[i].qos ? msg.topics[i].qos : null,
                             connectionId: msg.username,
-                            clientID: clientID
                         },
                     }
                     subscribtions.push(subscribeData);
@@ -326,42 +315,42 @@ if (cluster.isMaster) {
                 db.insert(subscribtions);
             });
 
-            CLIENT[msg.params.connection.unique].on('mqttUnsubscribe', function(data, packetID) {
-                bus.publish('net.sendData', {
+            CLIENT[msg.params.connection.unique].on('wsUnsubscribe', function(data, packetID) {
+                bus.publish('wss.sendData', {
                     payload: data,
                     username: this.id,
                     packetID: packetID,
-                    parentEvent: 'mqttUnsubscribe',
+                    parentEvent: 'wsUnsubscribe',
                     unique: this.unique
                 });
             });
 
-            CLIENT[msg.params.connection.unique].on('mqttUnsuback', function(data, msg) {
-                bus.publish('net.done', {
-                    packetID: data.getPacketID(),
+            CLIENT[msg.params.connection.unique].on('wsUnsuback', function(packetID, msg) {
+                bus.publish('wss.done', {
+                    packetID: packetID,
                     username: this.id,
-                    parentEvent: 'mqttUnsuback',
+                    parentEvent: 'wsUnsuback',
                     unique: this.unique
                 });
 
                 db.loadDatabase();
-                tokens[this.unique].releaseToken(data.getPacketID());
-                for (var i = 0; i < msg.length; i++) {
-                    db.remove({ 'type': 'subscribtion', 'subscribtion.topic': msg[i] }, { multi: true });
-                }
+                tokens[this.unique].releaseToken(packetID);               
+                db.remove({ 'type': 'wssubscribtion', 'subscribtion.topic': msg }, { multi: true });
+                // for (var i = 0; i < msg.length; i++) {
+                //     db.remove({ 'type': 'wssubscribtion', 'subscribtion.topic': msg[i] }, { multi: true });
+                // }
             });
 
-            CLIENT[msg.params.connection.unique].on('mqttPublishIn', function(data) {
+            CLIENT[msg.params.connection.unique].on('wsPublishIn', function(data) {
                 if (!data) return;
                 var inMessage = {
-                    type: 'message',
+                    type: 'wsmessage',
                     message: {
                         topic: data.topic,
                         qos: data.qos,
                         content: data.content,
                         connectionId: this.id,
-                        direction: 'in',
-                        clientID: this.clientID
+                        direction: 'in'
                     },
                     id: guid(),
                     time: (new Date()).getTime()
@@ -371,24 +360,23 @@ if (cluster.isMaster) {
                 db.insert(inMessage);
             });
 
-            CLIENT[msg.params.connection.unique].on('mqttPubackOut', function(data, msg) {
+            CLIENT[msg.params.connection.unique].on('wsPubackOut', function(data, msg) {
                 if (!data) return;
-                bus.publish('net.sendData', {
+                bus.publish('wss.sendData', {
                     payload: data,
                     username: this.id,
                     packetID: msg.packetID,
-                    parentEvent: 'mqttPubackOut',
+                    parentEvent: 'wsPubackOut',
                     unique: this.unique
                 });
                 var inMessage = {
-                    type: 'message',
+                    type: 'wsmessage',
                     message: {
                         topic: msg.topic,
                         qos: msg.qos,
                         content: msg.content,
                         connectionId: this.id,
-                        direction: 'in',
-                        clientID: this.clientID
+                        direction: 'in'
                     },
                     id: guid(),
                     time: (new Date()).getTime()
@@ -398,36 +386,35 @@ if (cluster.isMaster) {
                 db.insert(inMessage);
             });
 
-            CLIENT[msg.params.connection.unique].on('mqttPubrecOut', function(data, msg) {
+            CLIENT[msg.params.connection.unique].on('wsPubrecOut', function(data, msg) {
                 if (!data) return;
-                bus.publish('net.sendData', {
+                bus.publish('wss.sendData', {
                     payload: data,
                     username: this.id,
                     packetID: msg.packetID,
-                    parentEvent: 'mqttPubrecOut',
+                    parentEvent: 'wsPubrecOut',
                     unique: this.unique
                 });
             });
 
-            CLIENT[msg.params.connection.unique].on('mqttPubcompOut', function(data, msg) {
+            CLIENT[msg.params.connection.unique].on('wsPubcompOut', function(data, id, msg) {
                 if (!data) return;
-                bus.publish('net.sendData', {
+                bus.publish('wss.sendData', {
                     payload: data,
                     username: this.id,
-                    packetID: msg.packetID,
-                    parentEvent: 'mqttPubcompOut',
+                    packetID: id,
+                    parentEvent: 'wsPubcompOut',
                     unique: this.unique
                 });
 
                 var inMessage = {
-                    type: 'message',
+                    type: 'wsmessage',
                     message: {
                         topic: msg.topic,
                         qos: msg.qos,
                         content: msg.content,
                         connectionId: this.id,
-                        direction: 'in',
-                        clientID: this.clientID
+                        direction: 'in'
                     },
                     id: guid(),
                     time: (new Date()).getTime()
@@ -437,13 +424,14 @@ if (cluster.isMaster) {
                 db.insert(inMessage);
             });
 
-            CLIENT[msg.params.connection.unique].on('mqttPingResp', function() {
+            CLIENT[msg.params.connection.unique].on('wsPingResp', function(data) { 
                 clearTimeout(pingTimeout);
                 pingTimeout = setTimeout(function() {
-                    bus.publish('mqtt.disconnect', {
+                    bus.publish('ws.disconnect', {
                         msg: 'disconnect',
-                        username: this.id,
-                        unique: this.unique
+                        username: data.username,
+                        unique: data.unique,
+                        parentEvent: 'wsDisconnect'
                     });
                 }, msg.params.connection.keepalive * 2 * 1000);
             });
@@ -451,9 +439,9 @@ if (cluster.isMaster) {
             CLIENT[msg.params.connection.unique].Connect(msg.params.connection);
         });
 
-        bus.subscribe('mqtt.dataReceived', function(msg) {
+        bus.subscribe('ws.dataReceived', function(msg) {             
             if (typeof CLIENT[msg.unique] == 'undefined') return;
-            CLIENT[msg.unique].onDataRecieved(Buffer.from(msg.payload));
+            CLIENT[msg.unique].onDataRecieved(msg);
         });
 
     }, 100 * cluster.worker.id);

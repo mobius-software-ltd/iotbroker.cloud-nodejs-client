@@ -15,7 +15,7 @@
         vm.newItem = {};
         vm.deleteItem = deleteItem;
         vm.addItem = addItem;
-
+        vm.scrollBottom = scrollBottom;
 
         $scope.popover = {
             templateUrl: '/view/topics/modal.html',
@@ -28,6 +28,13 @@
         };
 
         init();
+
+        function scrollBottom() {
+            setTimeout(function(){
+              document.documentElement.scrollTop = document.documentElement.offsetHeight;
+            }, 200)
+            
+        }
 
         function deleteItem(params) {
             // console.log(params.item);
@@ -75,6 +82,9 @@
                 }
                 vm.topics = [];
                 vm.topics = sessionFactory.getTopics();
+                if (data.data.length == 0) {
+                    vm.topics = [];
+                }
             });
         }
 

@@ -20,7 +20,7 @@
 
 var args = process.argv.slice(2);
 
-var net = require('net');
+var WebSocketClient = require('websocket').client;
 var bus = require('servicebus').bus();
 var cluster = require('cluster');
 var numCPUs = args[0] || require('os').cpus().length;
@@ -44,23 +44,68 @@ if (cluster.isMaster) {
         var timers = {};
         var tokens = {};
 
-        bus.listen('net.newSocket', function(msg) {
+        bus.listen('wss.newSocket', function(msg) {
             try {
-                var socket = net.createConnection(msg.params.connection.port, msg.params.connection.host);
+                //var arr =[];
+                // arr = msg.params.connection.host.split('/')
+                // var host = arr[0]?;
+                // var path = '';
+                // if(arr.length>1){
+                //     for(var i=1; i<arr.length;i++){
+                //         path = '/' + arr[i]
+                //     }
+                // }
+                var urlString = "ws://" + msg.params.connection.host + ":" + msg.params.connection.port + '/ws';  
+               
+                var socket = new WebSocketClient();   
+                
                 var oldUserName=socket.username;
                 socket.username = msg.params.connection.username;
                 socket.unique = msg.params.connection.unique;
-                socket.connection = msg.params.connection;
-                
+                socket.connection = msg.params.connection;        
+               
                 if (typeof oldUserName == 'undefined') {
-                socket.on('data', function onDataReceived(data) {
-                        bus.publish('mqtt.dataReceived', {
+                socket.on('connectFailed', function(error) {
+                    console.log('Connect Error: ' + error.toString());
+                });
+                 
+                socket.on('connect', function(connection) {
+                    connections[msg.params.connection.unique] = connection;
+                    connection.username = msg.params.connection.username;
+                    connection.unique = msg.params.connection.unique;
+                    connections[msg.params.connection.unique].connection = {};
+                    connections[msg.params.connection.unique].connection.keepalive = msg.params.connection.keepalive;
+                    connectionParams[msg.params.connection.unique] = msg;               
+                    timers[msg.params.connection.unique] = new TIMERS(); 
+                    console.log('WebSocket Client Connected');                  
+                    bus.send('ws.socketOpened', msg);
+                    connection.on('error', function(error) {
+                        console.log("Connection Error: " + error.toString());
+                    });
+                    connection.on('close', function() {
+                        bus.publish('wss.done', {
+                            // packetID: packetID,
+                            username: socket.username,
+                            parentEvent: 'wsDisconnect',
+                            unique: socket.unique
+                        });
+                        console.log('echo-protocol Connection Closed');
+                    });
+
+                    connection.on('message', function(data) {
+                         bus.publish('ws.dataReceived', {
                             payload: data,
                             username: this.username,
                             unique: this.unique
-                        });                
-                    });
-                  }
+                        });                         
+                    });                   
+                 
+                });
+                socket.connect(urlString); 
+            }
+                
+               
+               
             } catch (e) {
                 console.log('Unable to establish connection to the server. Error: ', e);
                 if (typeof timers[msg.params.connection.unique] != 'undefined') {
@@ -68,26 +113,33 @@ if (cluster.isMaster) {
                     delete timers[msg.params.connection.unique];
                 }
                 if (typeof connections[msg.params.connection.unique] != 'undefined') {
-                    connections[msg.params.connection.unique].end();
+                    connections[msg.params.connection.unique].close();
                     delete connections[msg.params.connection.unique];
                 }
                 if (typeof connectionParams[msg.params.connection.unique] != 'undefined')
                     delete connectionParams[msg.params.connection.unique];
                 return;
             }
-            connectionParams[msg.params.connection.unique] = msg;
-            connections[msg.params.connection.unique] = socket;
-            timers[msg.params.connection.unique] = new TIMERS();
-            bus.send('mqtt.socketOpened', msg);
+            
+           
         });
 
-        bus.subscribe('net.sendData', function(msg) {
+        bus.subscribe('wss.sendData', function(msg) {
             if (typeof connections[msg.unique] == 'undefined') return;
-            if (msg.parentEvent != 'mqttDisconnect' && msg.parentEvent != 'mqttPubackOut' && msg.parentEvent != 'mqttPubrecOut' && msg.parentEvent != 'mqttPubcompOut') {
+            if (msg.parentEvent != 'wsDisconnect' && msg.parentEvent != 'wsPubackOut' && msg.parentEvent != 'wsPubrecOut' && msg.parentEvent != 'wsPubcompOut' && msg.parentEvent != 'wsPublish0') {
                 var newTimer = Timer({
                     callback: function() {
-                        try {                           
-                            connections[msg.unique].write(Buffer.from(msg.payload));
+                        try {                                 
+                                                     
+                            if(typeof connections[msg.unique] == 'undefined') {
+                                if(typeof msg.packetID != 'undefined' && typeof timers[msg.unique] != 'undefined') {
+                                     timers[msg.unique].releaseTimer(msg.packetID);
+                                }                              
+
+                                return
+                            }
+                            connections[msg.unique].send(msg.payload);
+                         
                         } catch (e) {
                             console.log('Unable to establish connection to the server. Error: ', e);
                             if (typeof timers[msg.unique] != 'undefined') {
@@ -95,7 +147,7 @@ if (cluster.isMaster) {
                                 delete timers[msg.unique];
                             }
                             if (typeof connections[msg.unique] != 'undefined') {
-                                connections[msg.unique].end();
+                                connections[msg.unique].close();
                                 delete connections[msg.unique];
                             }
                             if (typeof connectionParams[msg.unique] != 'undefined')
@@ -105,10 +157,19 @@ if (cluster.isMaster) {
                     },
                     interval: connections[msg.unique].connection.keepalive * 1000
                 });
-                timers[msg.unique].setTimer(msg.packetID, newTimer);
+                if(msg.packetID) {
+                  
+                    timers[msg.unique].setTimer(msg.packetID, newTimer);
+                }
+                
+
+
             }
-            try {
-                connections[msg.unique].write(Buffer.from(msg.payload));
+            try {            
+                if(JSON.parse(msg.payload).packet!=12) {
+                     if(connections[msg.unique])
+                    connections[msg.unique].send(msg.payload);
+                }                
             } catch (e) {
                 console.log('Unable to establish connection to the server. Error: ', e);
                 if (typeof timers[msg.unique] != 'undefined') {
@@ -116,7 +177,7 @@ if (cluster.isMaster) {
                     delete timers[msg.unique];
                 }
                 if (typeof connections[msg.unique] != 'undefined') {
-                    connections[msg.unique].end();
+                    connections[msg.unique].close();
                     delete connections[msg.unique];
                 }
                 if (typeof connectionParams[msg.unique] != 'undefined')
@@ -126,15 +187,18 @@ if (cluster.isMaster) {
             // connections[msg.unique].write(Buffer.from(msg.payload));
         });
 
-        bus.subscribe('net.done', function(msg) {
+        bus.subscribe('wss.done', function(msg) {
+                      
             if (typeof timers[msg.unique] == 'undefined') return;
+            if(msg.packetID)
             timers[msg.unique].releaseTimer(msg.packetID);
 
-            if (msg.parentEvent == 'mqttDisconnect') {
-                connections[msg.unique].end();
+            if (msg.parentEvent == 'wsDisconnect') {  
+                connections[msg.unique].close();
                 delete timers[msg.unique];
                 delete connections[msg.unique];
                 delete connectionParams[msg.unique];
+               
             }
 
         });

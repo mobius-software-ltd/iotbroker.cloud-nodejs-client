@@ -20,16 +20,13 @@
         }
 
         function connect(customer) {
-            console.log(customer)
             $http.post(mqttConstants.API_SERVER_URL + mqttConstants.API_CONNECT_URL, customer)
                 .then(function(data) {
-                    console.log(data)
                     if (data.data.length < 1 && customer.type.id != 3) {
                         toastr.error('Login failed!');
                         return;
                     }
                     $location.path('/topics');
-                    console.log(data);
                     sessionFactory.setSessionData(customer);
                     toastr.success('Successfully logged in!', data);
                 }, function(data) {
@@ -113,7 +110,6 @@
         }
 
         function subscribe(params) {
-            console.log(params);
             var def = $q.defer();
             $http.post(mqttConstants.API_SERVER_URL + mqttConstants.API_SUBSCRIBE_URL, params)
                 .then(function(data) {
@@ -128,7 +124,6 @@
         }
 
         function unsubscribe(params) {
-            console.log(params);
             var def = $q.defer();
             $http.post(mqttConstants.API_SERVER_URL + mqttConstants.API_UNSUBSCRIBE_URL, params)
                 .then(function(data) {

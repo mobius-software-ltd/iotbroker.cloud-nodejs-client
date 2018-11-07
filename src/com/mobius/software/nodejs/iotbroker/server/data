@@ -1,8 +1,0 @@
-{"type":"snconnack","connectionId":"12345","id":"3eae8a5de081d158951dcdcae9e32bd4","_id":"1KwKL9qb3RNI65Z1"}
-{"type":"connection","connection":{"host":"broker.iotbroker.cloud","port":1883,"clientID":"13245","isClean":true,"keepalive":10,"unique":"1324528d017a9919h8878"},"id":"af0a7f1ceb1bb1cfb20cb7237991aa81","_id":"2bas35WU4RTzQDCX"}
-{"type":"snsubscribtion","subscribtion":{"topic":"213123","qos":"1","connectionId":"12345","unique":"12345df3gf6h54d80b0ca","topicID":12},"_id":"39fBPsWhsR8bgg2x"}
-{"type":"snsubscribtion","subscribtion":{"topic":"dsfasasd","qos":"1","connectionId":"12345","unique":"123450bdh9h762edh72g5","topicID":14},"_id":"Anpbfup0eNZAvkIQ"}
-{"type":"snsubscribtion","subscribtion":{"topic":"asdaSD","qos":"1","connectionId":"12345","unique":"12345e13c56e98c12ae9f","topicID":16},"_id":"ZBfsdVUnMO6CaFwE"}
-{"type":"snsubscribtion","subscribtion":{"topic":"111","qos":"1","connectionId":"13245","unique":"1324528d017a9919h8878","topicID":13},"_id":"b695dFRrbFRPa64T"}
-{"type":"snsubscribtion","subscribtion":{"topic":"SADSAD","qos":"1","connectionId":"12345","unique":"12345b5achb9a94de16h3","topicID":17},"_id":"lvaSMnS7qrVJfMqH"}
-{"type":"connection","connection":{"host":"broker.iotbroker.cloud","port":5683,"clientID":"12345","isClean":false,"keepalive":10,"unique":"12345c1e7hda1e1eda1g7"},"id":"d0df04e57cde810aba6c23131da54993","_id":"xL6sBCqWkvUqunr3"}

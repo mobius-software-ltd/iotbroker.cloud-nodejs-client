@@ -13,7 +13,8 @@
         vm.types = [{name: "MQTT", id: 1},
                     {name: "SN", id: 2},
                     {name: "COAP", id: 3},
-                    {name: "AMQP", id: 4}]
+                    {name: "AMQP", id: 4},
+                    {name: "WEBSOCKETS", id: 5}]
         vm.login = {
             isClean: false,
             will: {

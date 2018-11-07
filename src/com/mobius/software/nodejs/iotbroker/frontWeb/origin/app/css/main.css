@@ -279,3 +279,7 @@ input:checked + .slider:before {
 
 button.login-button {
   border: none; }
+
+.popover.bottom {
+    margin-bottom: 250px;
+  }

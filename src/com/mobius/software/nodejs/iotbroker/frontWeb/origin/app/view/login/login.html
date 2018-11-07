@@ -15,7 +15,7 @@
                 </div>
             </div>
         </div>
-        <div ng-if="Ctrl.protocolType == 1 || Ctrl.protocolType == 4" class="login-row form-group-lg">
+        <div ng-if="Ctrl.protocolType == 1 || Ctrl.protocolType == 4 || Ctrl.protocolType == 5" class="login-row form-group-lg">
             <div class="login-formElements clearfix">
                 <label for="" class="col-xs-6"><img ng-src="img/login_user_name.png" />User name</label>
                 <div class="col-xs-6">
@@ -23,7 +23,7 @@
                 </div>
             </div>
         </div>
-        <div ng-if="Ctrl.protocolType == 1 || Ctrl.protocolType == 4" class="login-row form-group-lg">
+        <div ng-if="Ctrl.protocolType == 1 || Ctrl.protocolType == 4 || Ctrl.protocolType == 5" class="login-row form-group-lg">
             <div class="login-formElements clearfix">
                 <label for="" class="col-xs-6"><img ng-src="img/login_pass.png" />Password</label>
                 <div class="col-xs-6">
@@ -59,8 +59,8 @@
             </div>
         </div>
         
-        <h2 ng-if="Ctrl.protocolType == 1 || Ctrl.protocolType == 2" class="login-subtitle">Settings</h2>        
-        <div ng-if="Ctrl.protocolType == 1 || Ctrl.protocolType == 2" class="login-row form-group-lg">
+        <h2 ng-if="Ctrl.protocolType == 1 || Ctrl.protocolType == 2 || Ctrl.protocolType == 5" class="login-subtitle">Settings</h2>        
+        <div ng-if="Ctrl.protocolType == 1 || Ctrl.protocolType == 2 || Ctrl.protocolType == 5" class="login-row form-group-lg">
             <div class="login-formElements clearfix">
                 <label for="" class="col-xs-6"><img ng-src="img/login_clean_session.png" />Clean session</label>
                 <!--<input type="text" class="col-xs-6 form-control" placeholder="Port">-->
@@ -70,28 +70,28 @@
             </label>
             </div>
         </div>
-        <div ng-if="Ctrl.protocolType == 1 || Ctrl.protocolType == 2 || Ctrl.protocolType == 3" class="login-row form-group-lg">
+        <div ng-if="Ctrl.protocolType == 1 || Ctrl.protocolType == 2 || Ctrl.protocolType == 3 || Ctrl.protocolType == 5" class="login-row form-group-lg">
             <div class="login-formElements clearfix">
                 <label for="" class="col-xs-6"><img ng-src="img/login_keep_alive.png" />Keepalive</label>
                 <div class="col-xs-6">
                     <input type="text" class="col-xs-6 form-control" placeholder="Keepalive" ng-model="Ctrl.login.keepalive" required></div>
             </div>
         </div>
-        <div  ng-if="Ctrl.protocolType == 1 || Ctrl.protocolType == 2" class="login-row form-group-lg">
+        <div  ng-if="Ctrl.protocolType == 1 || Ctrl.protocolType == 2 || Ctrl.protocolType == 5" class="login-row form-group-lg">
             <div class="login-formElements clearfix">
                 <label for="" class="col-xs-6"><img ng-src="img/login_will.png" />Will</label>
                 <div class="col-xs-6">
                     <input data-toggle="modal" data-target="#will" ng-readonly="Ctrl.login.will.content" type="text" class="col-xs-6 form-control" placeholder="Will" ng-model="Ctrl.login.will.content"></div>
             </div>
         </div>
-        <div  ng-if="Ctrl.protocolType == 1 || Ctrl.protocolType == 2" class="login-row form-group-lg">
+        <div  ng-if="Ctrl.protocolType == 1 || Ctrl.protocolType == 2 || Ctrl.protocolType == 5" class="login-row form-group-lg">
             <div class="login-formElements clearfix">
                 <label for="" class="col-xs-6"><img ng-src="img/login_will_topic.png" />Will Topic</label>
                 <div class="col-xs-6">
                     <input type="text" class="col-xs-6 form-control" placeholder="Will Topic" ng-model="Ctrl.login.will.topic"></div>
             </div>
         </div>
-        <div  ng-if="Ctrl.protocolType == 1 || Ctrl.protocolType == 2" class="login-row form-group-lg">
+        <div  ng-if="Ctrl.protocolType == 1 || Ctrl.protocolType == 2 || Ctrl.protocolType == 5" class="login-row form-group-lg">
             <div class="login-formElements clearfix">
                 <label for="" class="col-xs-6"><img ng-src="img/login_retain.png" />Retain</label>
                 <!--<input type="text" class="col-xs-6 form-control" placeholder="Port">-->
@@ -101,17 +101,20 @@
             </label>
             </div>
         </div>
-        <div  ng-if="Ctrl.protocolType == 1 || (Ctrl.protocolType == 2 && Ctrl.login.will.topic && Ctrl.login.will.content)" class="login-row form-group-lg">
+        <div ng-if="(Ctrl.protocolType == 1 || Ctrl.protocolType == 2 || Ctrl.protocolType == 5) && Ctrl.login.will.topic && Ctrl.login.will.content"
+            class="login-row form-group-lg">
             <div class="login-formElements clearfix">
-                <label for="" class="col-xs-6"><img ng-src="img/login_qos.png" />QoS</label>
+                <label for="" class="col-xs-6">
+                    <img ng-src="img/login_qos.png" />QoS</label>
                 <div class="col-xs-6">
-                    <input type="text" class="col-xs-6 form-control" placeholder="QoS" ng-model="Ctrl.login.will.qos" required></div>
-                    <!-- <select class="form-control" ng-model="Ctrl.login.will.qos" required>
-                        <option selected value="{{item}}" ng-repeat="item in [0,1,2]">{{item}}</option>                       
-                    </select> -->
+                    <!-- <input type="text" class="col-xs-6 form-control" placeholder="QoS" ng-model="Ctrl.login.will.qos" required></div> -->
+                    <select class="form-control col-xs-6" ng-model="Ctrl.login.will.qos" required>
+                        <option selected value="{{item}}" ng-repeat="item in [0,1,2]">{{item}}</option>
+                    </select>
+                </div>
             </div>
-        </div>      
-
+        </div>
+        
         <button class="login-row login-button form-group-lg" type="button" ng-disabled="connect.$invalid" ng-click="Ctrl.connect()">
             <p>Log In</p>
             <!--<div class="login-formElements clearfix">-->
