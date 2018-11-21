@@ -47,30 +47,30 @@ if (cluster.isMaster) {
     var worker = [];
 
     for (var i = 0; i < numCPUs; i++) {
-        worker[i] = cluster.fork();            
+        worker[i] = cluster.fork();
     }
 
     cluster.on('message', function (evt, params) {
-         for (var i = 0; i < worker.length; i++) {
+        for (var i = 0; i < worker.length; i++) {
             worker[i].send(params.unique);
         }
-           
-    });  
+
+    });
 
     cluster.on('exit', function (deadWorker, code, signal) {
         var worker = cluster.fork();
     });
 
-    
-    
+
+
 } else {
     app.listen('8888', function () {
         console.log('app is running on port 8888');
         //console.log('worker ' + cluster.worker.process.pid + ' is started')
     });
 
-    app.post('/connect', function onConnect(req, res) {   
-        var Datastore = require('nedb');   
+    app.post('/connect', function onConnect(req, res) {
+        var Datastore = require('nedb');
         var dbUsers = new Datastore({ filename: 'users' });
         unique = req.body.clientID + Math.random().toString(18).substr(2, 16);
         currClient = req.body.type;
@@ -101,7 +101,7 @@ if (cluster.isMaster) {
             res.status(400).send('Invalid request! Parameter "clientID" mismatch.');
             return;
         }
-        if (typeof req.body.isClean == 'undefined' && (req.body.type.id == 1 || req.body.type.id == 2 || req.body.type.id == 5) ) {
+        if (typeof req.body.isClean == 'undefined' && (req.body.type.id == 1 || req.body.type.id == 2 || req.body.type.id == 5)) {
             res.status(400).send('Invalid request! Parameter "isClean" mismatch.');
             return;
         }
@@ -120,7 +120,7 @@ if (cluster.isMaster) {
                     clientID: req.body.clientID,
                     isClean: JSON.parse(req.body.isClean),
                     keepalive: parseInt(req.body.keepalive),
-                    unique: unique                   
+                    unique: unique
                 },
                 id: guid()
             };
@@ -129,7 +129,7 @@ if (cluster.isMaster) {
             return;
         }
         if (!!req.body.will && Object.keys(req.body.will).length > 1 && (req.body.type.id == 2 || req.body.type.id == 5)) {
-            
+
             if (!(req.body.will.qos >= 0 && req.body.will.qos < 3) && (req.body.type.id != 2 && req.body.type.id != 5)) {
                 res.status(400).send('Invalid request! Parameter "qos" in "will" mismatch.');
                 return;
@@ -172,13 +172,13 @@ if (cluster.isMaster) {
                     snClient.getData({ type: 'snconnack', connectionId: req.body.clientID }, res);
                 }, 500);
                 break;
-            case 3:                
+            case 3:
                 coapClient.send('coap.connect', {
                     msg: 'connect',
                     params: connectionParams,
                 });
                 setTimeout(function () {
-                    coapClient.getData({ type: 'connection', connectionId: req.body.clientID }, res);                   
+                    coapClient.getData({ type: 'connection', connectionId: req.body.clientID }, res);
                 }, 500);
                 break;
             case 4:
@@ -188,8 +188,9 @@ if (cluster.isMaster) {
                 });
                 var tryNum = 0;
                 setTimeout(function () {
-                    amqpClient.getData({ type: 'connack', connectionId: req.body.username }, res);
-                }, 500);
+                    amqpClient.getData({ type: 'amqp.connack', connectionId: req.body.username }, res);
+                }, 1500);
+                //  res.send('Testing ')
                 break;
             case 5:
                 wsClient.send('ws.connect', {
@@ -201,7 +202,7 @@ if (cluster.isMaster) {
                     wsClient.getData({ type: 'connack', connectionId: req.body.username }, res);
                 }, 500);
                 break;
-            
+
         }
 
     });
@@ -244,6 +245,14 @@ if (cluster.isMaster) {
                 });
                 res.send('disconnected');
                 break;
+            case 4:
+                amqpClient.publish(currClient.name + '.disconnect', {
+                    msg: 'disconnect',
+                    username: req.body.username,
+                    unique: unique
+                });
+                res.send('disconnected');
+                break;
             case 5:
                 wsClient.publish('ws.disconnect', {
                     msg: 'disconnect',
@@ -270,7 +279,7 @@ if (cluster.isMaster) {
             res.status(400).send('Invalid request! Parameter "content" mismatch.');
             return;
         }
-        if (!(req.body.qos >= 0 && req.body.qos < 3) && currClient.id != 3) {
+        if (!(req.body.qos >= 0 && req.body.qos < 3) && currClient.id != 3 && currClient.id != 4) {
             res.status(400).send('Invalid request! Parameter "qos" mismatch.');
             return;
         }
@@ -322,6 +331,15 @@ if (cluster.isMaster) {
                 });
                 break;
 
+            case 4:
+                amqpClient.publish('amqp.publish', {
+                    msg: 'publish',
+                    params: publishData,
+                    username: req.body.username,
+                    unique: unique
+                });
+                break;
+
             case 5:
                 wsClient.publish('ws.publish', {
                     msg: 'publish',
@@ -336,7 +354,7 @@ if (cluster.isMaster) {
         res.send('publish received');
     });
 
-    app.post('/subscribe', function onSubscribe(req, res) {       
+    app.post('/subscribe', function onSubscribe(req, res) {
         var currentProtocol = req.body.type.id;
         req.body.unique = unique;
         //if (!req.body.username || !/^(([^<>()\[\]\\.,;:\s@"]+(\.[^<>()\[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/.test(req.body.username)) {
@@ -362,7 +380,7 @@ if (cluster.isMaster) {
             try {
                 snClient.publish('sn.subscribe', {
                     msg: 'subscribe',
-                    params: req.body,                  
+                    params: req.body,
                 });
             } catch (error) {
                 res.status(400).send('Invalid request! Parameters mismatch.');
@@ -374,6 +392,23 @@ if (cluster.isMaster) {
                 coapClient.publish('coap.subscribe', {
                     msg: 'subscribe',
                     params: req.body,
+                });
+            } catch (error) {
+                res.status(400).send('Invalid request! Parameters mismatch.');
+                return;
+            }
+        }
+        if (currentProtocol == 4) {
+            if (!req.body.username) {
+                res.status(400).send('Invalid request! Parameter "username" mismatch.');
+                return;
+            }
+            try {
+                amqpClient.publish('amqp.subscribe', {
+                    msg: 'subscribe',
+                    params: req.body,
+                    username: req.body.username,
+                    unique: unique
                 });
             } catch (error) {
                 res.status(400).send('Invalid request! Parameters mismatch.');
@@ -414,7 +449,7 @@ if (cluster.isMaster) {
                     msg: 'subscribe',
                     params: Array.from(req.body.topics),
                     username: req.body.username,
-                    unique: unique 
+                    unique: unique
                 });
             } catch (error) {
                 res.status(400).send('Invalid request! Parameters mismatch.');
@@ -432,7 +467,7 @@ if (cluster.isMaster) {
                     params: Array.from(req.body.topics),
                     clientID: req.body.clientID,
                     topic: req.body.topic,
-                    unique: unique               
+                    unique: unique
                 });
             } catch (error) {
                 res.status(400).send('Invalid request! Parameters mismatch.');
@@ -457,6 +492,24 @@ if (cluster.isMaster) {
                 return;
             }
         }
+        if (currentProtocol == 4) {
+            if (!req.body.username) {
+                res.status(400).send('Invalid request! Parameter "username" mismatch.');
+                return;
+            }
+            try {
+
+                amqpClient.publish('amqp.unsubscribe', {
+                    msg: 'subscribe',
+                    params: req.body.topic,
+                    username: req.body.username,
+                    unique: unique
+                });
+            } catch (error) {
+                res.status(400).send('Invalid request! Parameters mismatch.');
+                return;
+            }
+        }
         if (currentProtocol == 5) {
             if (!req.body.username) {
                 res.status(400).send('Invalid request! Parameter "username" mismatch.');
@@ -467,7 +520,7 @@ if (cluster.isMaster) {
                     msg: 'subscribe',
                     params: Array.from(req.body.topics),
                     username: req.body.username,
-                    unique: unique 
+                    unique: unique
                 });
             } catch (error) {
                 res.status(400).send('Invalid request! Parameters mismatch.');
@@ -476,7 +529,7 @@ if (cluster.isMaster) {
         }
         res.send('unsubscribe received');
     });
-    app.post('/getmessages', function onGetMessages(req, res) {  
+    app.post('/getmessages', function onGetMessages(req, res) {
         var currentProtocol = req.body.type.id;
         if (currentProtocol == 1) {
             mqttClient.getData({
@@ -503,11 +556,20 @@ if (cluster.isMaster) {
                 'message.unique': unique
             }, res);
         }
+        if (currentProtocol == 4) {
+            mqttClient.getData({
+                type: 'amqp.message',
+                'message.direction': { $in: req.body.directions },
+                // 'message.topic': { $in: req.body.topics },
+                'message.connectionId': req.body.username,
+                'message.clientID': req.body.clientID
+            }, res);
+        }
         if (currentProtocol == 5) {
             wsClient.getData({
                 type: 'wsmessage',
                 'message.direction': { $in: req.body.directions },
-               // 'message.topic': { $in: req.body.topics },
+                // 'message.topic': { $in: req.body.topics },
                 'message.connectionId': req.body.username
             }, res);
         }
@@ -531,6 +593,13 @@ if (cluster.isMaster) {
             coapClient.getData({
                 type: 'coapsubscribtion',
                 'subscribtion.connectionId': req.body.clientID
+            }, res);
+        }
+        if (currentProtocol == 4) {
+            mqttClient.getData({
+                type: 'amqp.subscribtion',
+                'subscribtion.connectionId': req.body.username,
+                'subscribtion.clientID': req.body.clientID,
             }, res);
         }
         if (currentProtocol == 5) {

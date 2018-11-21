@@ -1,0 +1,50 @@
+/**
+ * Mobius Software LTD
+ * Copyright 2015-2016, Mobius Software LTD
+ *
+ * This is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU Lesser General Public License as
+ * published by the Free Software Foundation; either version 2.1 of
+ * the License, or (at your option) any later version.
+ *
+ * This software is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this software; if not, write to the Free
+ * Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
+ * 02110-1301 USA, or see the FSF site: http://www.fsf.org.
+ */
+
+'use strict';
+
+function ConnectionProperty() {
+    var name;
+    return {
+        ConnectionProperty: {
+            PLATFORM: "platform",
+            PRODUCT: "product",
+            QPID_CLIENT_PID: "qpid.client_pid",
+            QPID_CLIENT_PPID: "qpid.client_ppid",
+            QPID_CLIENT_PROCESS: "qpid.client_process",
+            VERSION: "version"
+        },
+        getName: function() {
+            return name
+        }, 
+        ConnectionProperty: function(leg) {
+            name = leg
+        },
+        checkName: function (policy) {
+            var result = this.ConnectionProperty[policy];  
+
+            if (!result)
+                throw new Error("Unrecognized connection property: " + policy);
+            
+                return result;
+        }
+    }
+}
+module.exports = ConnectionProperty;

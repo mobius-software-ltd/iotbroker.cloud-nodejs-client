@@ -56,7 +56,7 @@
 
         function addItem() {
             // console.log(vm.newItem);
-            if ((typeof vm.newItem.qos == 'undefined' && vm.sessionData.type.id != 3) || typeof vm.newItem.topic == 'undefined') return;
+            if ((typeof vm.newItem.qos == 'undefined' && vm.sessionData.type.id != 3 && vm.sessionData.type.id != 4) || typeof vm.newItem.topic == 'undefined') return;
             dataFactory.subscribe({
                 topics: [vm.newItem],
                 username: sessionData.username,
