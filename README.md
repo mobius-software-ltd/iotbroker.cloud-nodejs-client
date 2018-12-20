@@ -5,7 +5,7 @@ AMQP or COAP protocols. IoTBroker.cloud Node.js Client gives the opportunity to 
 mentioned above. Your data can be also encrypted with **TLS** or **DTLS** secure protocols.   
 
 Below you can find a brief description of each protocol that can help you make your choice. 
-If you need to get more information, you can find it in our [blog](https://www.iotbroker.cloud/clientApps/Android/MQTT).
+If you need to get more information, you can find it in our [blog](https://www.iotbroker.cloud/clientApps/Node.js/MQTT).
  
 **MQTT** is a lightweight publish-subscribe based messaging protocol built for use over TCP/IP.  
 MQTT was designed to provide devices with limited resources an easy way to communicate effectively. 
