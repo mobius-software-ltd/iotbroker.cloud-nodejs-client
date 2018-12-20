@@ -58,7 +58,7 @@ bower install
 gulp 
 ```
 
-* Then run the following сommand in the **Server** folder. The path will be as follows */iotbroker.cloud-nodejs-client/src/com/mobius/software/nodejs/iotbroker/server*:
+* Then run the following сommand in the **Server** folder. The path will be as follows *\iotbroker.cloud-nodejs-client\src\com\mobius\software\nodejs\iotbroker\server*:
 ```
 node web.js
 ```
