@@ -45,7 +45,7 @@ The following programs should be installed before starting to clone IoTBroker.Cl
 sudo service rabbitmq-server start
 ```
 
-* Next run the сommands in the following path \source\iotbroker.cloud-nodejs-client\src\com\mobius\software\nodejs\iotbroker\frontWeb\origin
+* Next run the following сommands in the **Origin** folder. The path will be as follows *\iotbroker.cloud-nodejs-client\src\com\mobius\software\nodejs\iotbroker\frontWeb\origin*
 
 ```
 npm install 
@@ -58,11 +58,11 @@ bower install
 gulp 
 ```
 
-* Then go to home/username/iotbroker.cloud-nodejs-client/src/com/mobius/software/nodejs/iotbroker/server* and run the following command:
+* Then run the following сommand in the **Server** folder. The path will be as follows */iotbroker.cloud-nodejs-client/src/com/mobius/software/nodejs/iotbroker/server*:
 ```
 node web.js
 ```
-Finally you should go to the URL where it is deployed. Usually it is http://localhost:8080/
+* Finally you should go to the URL where it is deployed. Usually it is http://localhost:8080/
 
 When you finished with deployment, you can log in to your account and connect to the server. Please note that at this stage it is not possible to register as a client. You can log in to your existing account.
 
