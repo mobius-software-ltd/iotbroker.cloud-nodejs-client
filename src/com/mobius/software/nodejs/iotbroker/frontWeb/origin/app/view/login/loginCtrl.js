@@ -19,22 +19,17 @@
             isClean: false,
             will: {
                 retain: false
-            }
+            },
+            secure: false,
+            certificate: null,
+            privateKey: null
         };
         vm.connect = connect;
 
         init();
 
-        //hardcode login
-        // vm.login = {
-        //     username: 'yulian.oifa@mobius-software.com',
-        //     password: 'galina1988',
-        //     clientID: '775553',
-        //     host: 'broker.iotbroker.cloud',
-        //     port: '5672',
-        //     keepalive: '60',
-        //     isClean: false
-        // }
+       
+      
 
         function connect() {
             // vm.login(vm.login);

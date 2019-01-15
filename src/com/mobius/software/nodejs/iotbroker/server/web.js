@@ -69,7 +69,7 @@ if (cluster.isMaster) {
         //console.log('worker ' + cluster.worker.process.pid + ' is started')
     });
 
-    app.post('/connect', function onConnect(req, res) {
+    app.post('/connect', function onConnect(req, res) {        
         var Datastore = require('nedb');
         var dbUsers = new Datastore({ filename: 'users' });
         unique = req.body.clientID + Math.random().toString(18).substr(2, 16);
@@ -120,7 +120,10 @@ if (cluster.isMaster) {
                     clientID: req.body.clientID,
                     isClean: JSON.parse(req.body.isClean),
                     keepalive: parseInt(req.body.keepalive),
-                    unique: unique
+                    unique: unique,
+                    secure: req.body.secure,
+                    certificate: req.body.certificate,
+                    privateKey: req.body.privateKey
                 },
                 id: guid()
             };
@@ -162,7 +165,7 @@ if (cluster.isMaster) {
                 var tryNum = 0;
                 setTimeout(function () {
                     mqttClient.getData({ type: 'connack', connectionId: req.body.username }, res);
-                }, 500);
+                }, 1000);
                 break;
             case 2:
                 snClient.send(currClient.name + '.connect', {

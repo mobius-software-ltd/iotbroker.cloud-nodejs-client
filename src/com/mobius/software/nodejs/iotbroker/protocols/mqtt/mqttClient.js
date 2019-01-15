@@ -58,7 +58,7 @@ if (cluster.isMaster) {
    
     setTimeout(function() {
       
-        bus.listen('mqtt.connect', function(msg) {            
+        bus.listen('mqtt.connect', function(msg) {    
             bus.send('net.newSocket', msg);
             db.loadDatabase();
             db.remove({ 'type': 'connection', 'connection.username': msg.params.connection.username }, { multi: true });
@@ -135,14 +135,14 @@ if (cluster.isMaster) {
                 delete tokens[this.unique];
             });
 
-            CLIENT[msg.params.connection.unique].on('mqttConnack', function(data) {
+            CLIENT[msg.params.connection.unique].on('mqttConnack', function(data) {              
                 var that = this;
                 bus.publish('net.done', {
                     packetID: data.getPacketID(),
                     username: this.id,
                     parentEvent: 'mqttConnack',
                     unique: this.unique
-                });
+                });               
                 db.loadDatabase();
                 if (data.getReturnCode() == 'ACCEPTED') {
                     db.remove({ type: 'connack' }, { multi: true }, function(err, docs) {
@@ -409,32 +409,32 @@ if (cluster.isMaster) {
                 });
             });
 
-            CLIENT[msg.params.connection.unique].on('mqttPubcompOut', function(data, msg) {
+            CLIENT[msg.params.connection.unique].on('mqttPubcompOut', function(data, id, msg) {               
                 if (!data) return;
                 bus.publish('net.sendData', {
                     payload: data,
                     username: this.id,
-                    packetID: msg.packetID,
+                    packetID: id,
                     parentEvent: 'mqttPubcompOut',
                     unique: this.unique
                 });
-
-                var inMessage = {
-                    type: 'message',
-                    message: {
-                        topic: msg.topic,
-                        qos: msg.qos,
-                        content: msg.content,
-                        connectionId: this.id,
-                        direction: 'in',
-                        clientID: this.clientID
-                    },
-                    id: guid(),
-                    time: (new Date()).getTime()
-                }
-
-                db.loadDatabase();
-                db.insert(inMessage);
+                if(msg) {
+                    var inMessage = {
+                        type: 'message',
+                        message: {
+                            topic: msg.topic,
+                            qos: msg.qos,
+                            content: msg.content,
+                            connectionId: this.id,
+                            direction: 'in',
+                            clientID: this.clientID
+                        },
+                        id: guid(),
+                        time: (new Date()).getTime()
+                    }
+    
+                    db.loadDatabase();
+                    db.insert(inMessage);  }
             });
 
             CLIENT[msg.params.connection.unique].on('mqttPingResp', function() {

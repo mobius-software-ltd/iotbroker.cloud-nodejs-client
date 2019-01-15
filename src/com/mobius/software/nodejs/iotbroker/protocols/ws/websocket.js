@@ -37,75 +37,81 @@ if (cluster.isMaster) {
         }
     }
 } else {
-    setTimeout(function() {
+    setTimeout(function () {
 
         var connections = {};
         var connectionParams = {};
         var timers = {};
         var tokens = {};
 
-        bus.listen('wss.newSocket', function(msg) {
+        bus.listen('wss.newSocket', function (msg) {
             try {
-                //var arr =[];
-                // arr = msg.params.connection.host.split('/')
-                // var host = arr[0]?;
-                // var path = '';
-                // if(arr.length>1){
-                //     for(var i=1; i<arr.length;i++){
-                //         path = '/' + arr[i]
-                //     }
-                // }
-                var urlString = "ws://" + msg.params.connection.host + ":" + msg.params.connection.port + '/ws';  
-               
-                var socket = new WebSocketClient();   
-                
-                var oldUserName=socket.username;
+
+                if (msg.params.connection.secure) {
+                    var urlString = "wss://" + msg.params.connection.host + ":" + msg.params.connection.port + '/ws';
+                    if (msg.params.connection.certificate) {
+                        var socket = new WebSocketClient({
+                            tlsOptions: {
+                                key: msg.params.connection.certificate,
+                                cert: msg.params.connection.certificate,
+                                passphrase: msg.params.connection.privateKey
+                            }
+                        });
+                    } else {
+                        var socket = new WebSocketClient()
+                    }
+                } else {
+                    var urlString = "ws://" + msg.params.connection.host + ":" + msg.params.connection.port + '/ws';
+                    var socket = new WebSocketClient()
+                }
+
+                var oldUserName = socket.username;
                 socket.username = msg.params.connection.username;
                 socket.unique = msg.params.connection.unique;
-                socket.connection = msg.params.connection;        
-               
+                socket.connection = msg.params.connection;
+
                 if (typeof oldUserName == 'undefined') {
-                socket.on('connectFailed', function(error) {
-                    console.log('Connect Error: ' + error.toString());
-                });
-                 
-                socket.on('connect', function(connection) {
-                    connections[msg.params.connection.unique] = connection;
-                    connection.username = msg.params.connection.username;
-                    connection.unique = msg.params.connection.unique;
-                    connections[msg.params.connection.unique].connection = {};
-                    connections[msg.params.connection.unique].connection.keepalive = msg.params.connection.keepalive;
-                    connectionParams[msg.params.connection.unique] = msg;               
-                    timers[msg.params.connection.unique] = new TIMERS(); 
-                    console.log('WebSocket Client Connected');                  
-                    bus.send('ws.socketOpened', msg);
-                    connection.on('error', function(error) {
-                        console.log("Connection Error: " + error.toString());
-                    });
-                    connection.on('close', function() {
-                        bus.publish('wss.done', {
-                            // packetID: packetID,
-                            username: socket.username,
-                            parentEvent: 'wsDisconnect',
-                            unique: socket.unique
-                        });
-                        console.log('echo-protocol Connection Closed');
+                    socket.on('connectFailed', function (error) {
+                        console.log('Connect Error: ' + error.toString());
                     });
 
-                    connection.on('message', function(data) {
-                         bus.publish('ws.dataReceived', {
-                            payload: data,
-                            username: this.username,
-                            unique: this.unique
-                        });                         
-                    });                   
-                 
-                });
-                socket.connect(urlString); 
-            }
-                
-               
-               
+                    socket.on('connect', function (connection) {
+                        connections[msg.params.connection.unique] = connection;
+                        connection.username = msg.params.connection.username;
+                        connection.unique = msg.params.connection.unique;
+                        connections[msg.params.connection.unique].connection = {};
+                        connections[msg.params.connection.unique].connection.keepalive = msg.params.connection.keepalive;
+                        connectionParams[msg.params.connection.unique] = msg;
+                        timers[msg.params.connection.unique] = new TIMERS();
+                        console.log('WebSocket Client Connected');
+                        bus.send('ws.socketOpened', msg);
+                        connection.on('error', function (error) {
+                            console.log("Connection Error: " + error.toString());
+                        });
+                        connection.on('close', function () {
+                            bus.publish('wss.done', {
+                                // packetID: packetID,
+                                username: socket.username,
+                                parentEvent: 'wsDisconnect',
+                                unique: socket.unique
+                            });
+                            console.log('echo-protocol Connection Closed');
+                        });
+
+                        connection.on('message', function (data) {
+                            bus.publish('ws.dataReceived', {
+                                payload: data,
+                                username: this.username,
+                                unique: this.unique
+                            });
+                        });
+
+                    });
+                    socket.connect(urlString);
+                }
+
+
+
             } catch (e) {
                 console.log('Unable to establish connection to the server. Error: ', e);
                 if (typeof timers[msg.params.connection.unique] != 'undefined') {
@@ -120,26 +126,26 @@ if (cluster.isMaster) {
                     delete connectionParams[msg.params.connection.unique];
                 return;
             }
-            
-           
+
+
         });
 
-        bus.subscribe('wss.sendData', function(msg) {
+        bus.subscribe('wss.sendData', function (msg) {
             if (typeof connections[msg.unique] == 'undefined') return;
             if (msg.parentEvent != 'wsDisconnect' && msg.parentEvent != 'wsPubackOut' && msg.parentEvent != 'wsPubrecOut' && msg.parentEvent != 'wsPubcompOut' && msg.parentEvent != 'wsPublish0') {
                 var newTimer = Timer({
-                    callback: function() {
-                        try {                                 
-                                                     
-                            if(typeof connections[msg.unique] == 'undefined') {
-                                if(typeof msg.packetID != 'undefined' && typeof timers[msg.unique] != 'undefined') {
-                                     timers[msg.unique].releaseTimer(msg.packetID);
-                                }                              
+                    callback: function () {
+                        try {
+
+                            if (typeof connections[msg.unique] == 'undefined') {
+                                if (typeof msg.packetID != 'undefined' && typeof timers[msg.unique] != 'undefined') {
+                                    timers[msg.unique].releaseTimer(msg.packetID);
+                                }
 
                                 return
                             }
                             connections[msg.unique].send(msg.payload);
-                         
+
                         } catch (e) {
                             console.log('Unable to establish connection to the server. Error: ', e);
                             if (typeof timers[msg.unique] != 'undefined') {
@@ -157,19 +163,19 @@ if (cluster.isMaster) {
                     },
                     interval: connections[msg.unique].connection.keepalive * 1000
                 });
-                if(msg.packetID) {
-                  
+                if (msg.packetID) {
+
                     timers[msg.unique].setTimer(msg.packetID, newTimer);
                 }
-                
+
 
 
             }
-            try {            
-                if(JSON.parse(msg.payload).packet!=12) {
-                     if(connections[msg.unique])
-                    connections[msg.unique].send(msg.payload);
-                }                
+            try {
+                if (JSON.parse(msg.payload).packet != 12) {
+                    if (connections[msg.unique])
+                        connections[msg.unique].send(msg.payload);
+                }
             } catch (e) {
                 console.log('Unable to establish connection to the server. Error: ', e);
                 if (typeof timers[msg.unique] != 'undefined') {
@@ -187,18 +193,18 @@ if (cluster.isMaster) {
             // connections[msg.unique].write(Buffer.from(msg.payload));
         });
 
-        bus.subscribe('wss.done', function(msg) {
-                      
-            if (typeof timers[msg.unique] == 'undefined') return;
-            if(msg.packetID)
-            timers[msg.unique].releaseTimer(msg.packetID);
+        bus.subscribe('wss.done', function (msg) {
 
-            if (msg.parentEvent == 'wsDisconnect') {  
+            if (typeof timers[msg.unique] == 'undefined') return;
+            if (msg.packetID)
+                timers[msg.unique].releaseTimer(msg.packetID);
+
+            if (msg.parentEvent == 'wsDisconnect') {
                 connections[msg.unique].close();
                 delete timers[msg.unique];
                 delete connections[msg.unique];
                 delete connectionParams[msg.unique];
-               
+
             }
 
         });

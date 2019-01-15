@@ -201,7 +201,6 @@ function publish(params) {
 		} catch (e) {
 			console.log(e)
 		}
-		console.log('send transfer')
 		this.emit('amqp.publish', encTransfer, deliveryId);
 	} else {
 		try {
@@ -231,7 +230,6 @@ function publish(params) {
 			console.log(e)
 		}
 
-		console.log('789678968789789789789786')
 		this.emit('amqp.publish', encAttach, deliveryId);
 	}
 }
@@ -326,10 +324,7 @@ function onDataRecieved(data, client) {
 
 		case ENUM.HeaderCode.TRANSFER:
 			var transfer = decoded;
-			var desposition = processTransfer(transfer.getData(), transfer.getHandle(), transfer.getSettled(), transfer.getDeliveryId());
-			console.log('INCOMING token')
-			console.log(transfer.getHandle())
-			console.log(usedOutgoingHandles)
+			var desposition = processTransfer(transfer.getData(), transfer.getHandle(), transfer.getSettled(), transfer.getDeliveryId());			
 			var topic = ''
 			if(usedOutgoingHandles[transfer.getHandle()])
 			 topic = usedOutgoingHandles[transfer.getHandle()]

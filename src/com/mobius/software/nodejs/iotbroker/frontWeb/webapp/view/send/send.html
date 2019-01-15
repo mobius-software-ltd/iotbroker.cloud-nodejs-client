@@ -6,54 +6,60 @@
     <form action="" class="login-form">
         <div class="login-row form-group-lg">
             <div class="login-formElements clearfix">
-                <label for="" class="col-xs-6"><img ng-src="img/login_will.png" />Content</label>
+                <label for="" class="col-xs-6">
+                    <img ng-src="img/login_will.png" />Content</label>
                 <div class="col-xs-6">
-                    <input type="text" class="col-xs-6 form-control" placeholder="Content" ng-model="Ctrl.message.content"></div>
+                    <input type="text" class="col-xs-6 form-control" placeholder="Content" ng-model="Ctrl.message.content">
+                </div>
             </div>
         </div>
         <div class="login-row form-group-lg">
             <div class="login-formElements clearfix">
-                <label for="" class="col-xs-6"><img ng-src="img/login_will_topic.png" />Topic</label>
+                <label for="" class="col-xs-6">
+                    <img ng-src="img/login_will_topic.png" />Topic</label>
                 <div class="col-xs-6">
-                    <input type="text" class="col-xs-6 form-control" placeholder="Topic" ng-model="Ctrl.message.topic"></div>
+                    <input type="text" class="col-xs-6 form-control" placeholder="Topic" ng-model="Ctrl.message.topic">
+                </div>
             </div>
         </div>
-        <div class="login-row form-group-lg" ng-hide="Ctrl.sessionData.type.id == 3">
+        <div class="login-row form-group-lg" ng-hide="Ctrl.sessionData.type.id == 4">
             <div class="login-formElements clearfix">
-                <label for="" class="col-xs-6"><img ng-src="img/login_qos.png" />QoS</label>
+                <label for="" class="col-xs-6">
+                    <img ng-src="img/login_qos.png" />QoS</label>
                 <div class="col-xs-6">
-                    <input type="text" class="col-xs-6 form-control" placeholder="QoS" ng-model="Ctrl.message.qos"></div>
+                    <!-- <input type="text" class="col-xs-6 form-control" placeholder="QoS" ng-model="Ctrl.message.qos"></div> -->
+                    <select ng-hide="Ctrl.sessionData.type.id == 3" class="form-control" ng-model="Ctrl.message.qos" required>
+                        <option selected value="{{item}}" ng-repeat="item in [0,1,2]">{{item}}</option>
+                    </select>
+
+                    <select ng-show="Ctrl.sessionData.type.id == 3" class="form-control" ng-model="Ctrl.message.qos" required>
+                        <option selected value="{{item}}" ng-repeat="item in [0,1]">{{item}}</option>
+                    </select>
+
+                </div>
             </div>
         </div>
 
-        <div class="login-row form-group-lg" ng-show="Ctrl.sessionData.type.id == 3">
-                <div class="login-formElements clearfix">
-                    <label for="" class="col-xs-6"><img ng-src="img/login_qos.png" />QoS</label>
-                    <div class="col-xs-6">
-                            <select class="form-control" ng-model="Ctrl.message.qos" required>
-                                    <option selected value="{{item}}" ng-repeat="item in [0,1]">{{item}}</option>                       
-                                </select>
-                </div>
-            </div>
-            </div>
         <div class="login-row form-group-lg" ng-hide="Ctrl.sessionData.type.id == 3">
             <div class="login-formElements clearfix">
-                <label for="" class="col-xs-6"><img ng-src="img/login_retain.png" />Retain</label>
+                <label for="" class="col-xs-6">
+                    <img ng-src="img/login_retain.png" />Retain</label>
                 <!--<input type="text" class="col-xs-6 form-control" placeholder="Port">-->
                 <label class="switch">
-                <input type="checkbox" ng-model="Ctrl.message.retain">
-                <div class="slider round"></div>
-            </label>
+                    <input type="checkbox" ng-model="Ctrl.message.retain">
+                    <div class="slider round"></div>
+                </label>
             </div>
         </div>
         <div class="login-row form-group-lg" ng-hide="Ctrl.sessionData.type.id == 3">
             <div class="login-formElements clearfix">
-                <label for="" class="col-xs-6"><img ng-src="img/login_retain.png" />Duplicate</label>
+                <label for="" class="col-xs-6">
+                    <img ng-src="img/login_retain.png" />Duplicate</label>
                 <!--<input type="text" class="col-xs-6 form-control" placeholder="Port">-->
                 <label class="switch">
-                <input type="checkbox" ng-model="Ctrl.message.isDupe">
-                <div class="slider round"></div>
-            </label>
+                    <input type="checkbox" ng-model="Ctrl.message.isDupe">
+                    <div class="slider round"></div>
+                </label>
             </div>
         </div>
         <div class="login-row login-button form-group-lg" ng-click="Ctrl.publish()">

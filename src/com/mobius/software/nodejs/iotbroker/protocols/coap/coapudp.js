@@ -18,13 +18,15 @@
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org.
  */
 
- 
+
 var args = process.argv.slice(2);
 
 var bus = require('servicebus').bus();
 var cluster = require('cluster');
-const dgram = require('dgram');
-const udp = dgram.createSocket('udp4');
+var dgram = require('dgram');
+var udp = dgram.createSocket('udp4');
+var dtls = require('nodejs-dtls');
+var dns = require('dns');
 var numCPUs = args[0] || require('os').cpus().length;
 var parser = require('./COAPParser');
 var TIMERS = require('./lib/Timers');
@@ -38,48 +40,85 @@ if (cluster.isMaster) {
         }
     }
 } else {
-   
 
-    setTimeout(function() {
+
+    setTimeout(function () {
         var vm = this;
         var connections = {};
         var connectionParams = {};
         var timers = {};
         var tokens = {};
-      
+
 
         cluster.worker.on('message', function (id) {
-            if(timers[id]) {
+            if (timers[id]) {
                 timers[id].releaseTimer(-1);
                 delete timers[id];
-            }        
+            }
         })
 
-        bus.listen('coapudp.newSocket', function(msg) {
+        bus.listen('coapudp.newSocket', function (msg) {
             vm.port = msg.params.connection.port;
             vm.host = msg.params.connection.host;
+            vm.secure = msg.params.connection.secure
             vm.clientID = msg.params.connection.clientID
-          
+
             var oldUniqueCoap = vm.unique;
-            vm.unique =  msg.params.connection.unique;
+            vm.unique = msg.params.connection.unique;
 
             if (typeof oldUniqueCoap != 'undefined') {
-                timers[oldUniqueCoap].releaseTimer(-1);              
-               // tokens[oldUniqueCoap].releaseToken(data.getPacketID());
+                timers[oldUniqueCoap].releaseTimer(-1);
+                // tokens[oldUniqueCoap].releaseToken(data.getPacketID());
                 delete timers[oldUniqueCoap];
                 delete connections[oldUniqueCoap];
                 delete connectionParams[oldUniqueCoap];
-                delete tokens[oldUniqueCoap];             
+                delete tokens[oldUniqueCoap];
                 udp.close()
                 oldUniqueCoap = undefined;
                 connections = {};
                 connectionParams = {};
                 timers = {};
-                tokens = {};               
+                tokens = {};
                 udp = dgram.createSocket('udp4');
             }
-           
-            udp.clientID = msg.params.connection.clientID;           
+
+            if (vm.secure) {
+                var certificate = null;
+                var privateKey = null;
+                if (msg.params.connection.certificate) {
+                    certificate = '';
+                    privateKey = '';
+                    var arr = [];
+                    arr = msg.params.connection.certificate.split('-----BEGIN CERTIFICATE-----');
+                    arr.forEach(function (str, index) {
+                        if (str.indexOf('-----END CERTIFICATE-----') !== -1) {
+                            certificate += '-----BEGIN CERTIFICATE-----' + str;
+                        } else {
+                            privateKey += str
+                        }
+                    })
+                    certificate = certificate.replace(/(?:\n)/g, '\r\n');
+                    certificate = Buffer.from(certificate, 'utf8'),
+                    privateKey = Buffer.from(privateKey, 'utf8')
+                }
+                dns.lookup(vm.host, function (err, address, family) {
+                    var options = {
+                        socket: udp,
+                        remotePort: vm.port,
+                        remoteAddress: address,
+                        certificate: certificate,
+                        certificatePrivateKey: privateKey,
+                        // passphrase: msg.params.connection.privateKey
+                    }
+                    try {
+                        udp = dtls.connect(options);
+                    } catch (e) {
+                        console.log(e)
+                    }
+                })
+            }
+
+            udp.clientID = msg.params.connection.clientID;
             udp.unique = msg.params.connection.unique;
             udp.connection = msg.params.connection;
 
@@ -90,15 +129,25 @@ if (cluster.isMaster) {
                 });
             }
 
-           if (typeof oldUniqueCoap == 'undefined') {                
-                udp.on('message', function onDataReceived(data, rinfo) {
-                    bus.publish('coap.datareceived', {
-                        payload: data,
-                        clientID: vm.clientID,
-                        unique: vm.unique
+            if (typeof oldUniqueCoap == 'undefined') {
+                if (vm.secure) {
+                    udp.on('data', function onDataReceived(data) {
+                        bus.publish('coap.datareceived', {
+                            payload: data,
+                            clientID: vm.clientID,
+                            unique: vm.unique
+                        });
+                    })
+                } else {
+                    udp.on('message', function onDataReceived(data, rinfo) {
+                        bus.publish('coap.datareceived', {
+                            payload: data,
+                            clientID: vm.clientID,
+                            unique: vm.unique
+                        });
                     });
-                });
-            }          
+                }
+            }
 
             connectionParams[msg.params.connection.unique] = msg;
             connections[msg.params.connection.unique] = udp;
@@ -106,19 +155,23 @@ if (cluster.isMaster) {
         })
 
 
-        bus.subscribe('coapudp.senddata', function(msg) { 
-              if (typeof connections[msg.unique] == 'undefined') return;
-             if (msg.parentEvent == 'coappingreq' || msg.parentEvent == 'coappublish' || msg.parentEvent == 'coapsubscribe' || msg.parentEvent == 'coapunsubscribe') {
-                 var interval = connections[msg.unique].connection.keepalive * 1000;                
-                 if(msg.parentEvent == 'coappublish'){
+        bus.subscribe('coapudp.senddata', function (msg) {
+            if (typeof connections[msg.unique] == 'undefined') return;
+            if (msg.parentEvent == 'coappingreq' || msg.parentEvent == 'coappublish' || msg.parentEvent == 'coapsubscribe' || msg.parentEvent == 'coapunsubscribe') {
+                var interval = connections[msg.unique].connection.keepalive * 1000;
+                if (msg.parentEvent == 'coappublish') {
                     interval = 3000;
-                 }
+                }
                 var newTimer = Timer({
-                    callback: function() {
-                        try {     
-                             var message = Buffer.from(msg.payload)
-                            udp.send(message, vm.port, vm.host, function(err){                                
-                            });
+                    callback: function () {
+                        try {
+                            var message = Buffer.from(msg.payload)
+                            if (vm.secure) {
+                                udp.write(message)
+                            } else {
+                                udp.send(message, vm.port, vm.host, function (err) {
+                                });
+                            }
                         } catch (e) {
                             console.log('Unable to establish connection to the server. Error: ', e);
                             if (typeof timers[msg.unique] != 'undefined') {
@@ -136,34 +189,38 @@ if (cluster.isMaster) {
                     },
                     interval: interval
                 });
-                if(msg.parentEvent == 'coappingreq') {
+                if (msg.parentEvent == 'coappingreq') {
                     timers[msg.unique].setTimer(-1, newTimer);
-                } 
-                if(msg.parentEvent == 'coappublish' || msg.parentEvent == 'coapsubscribe' || msg.parentEvent == 'coapunsubscribe') { 
-                     timers[msg.unique].setTimer(msg.token, newTimer);
-                } 
+                }
+                if (msg.parentEvent == 'coappublish' || msg.parentEvent == 'coapsubscribe' || msg.parentEvent == 'coapunsubscribe') {
+                    timers[msg.unique].setTimer(msg.token, newTimer);
+                }
             }
             try {
-                 udp.send(Buffer.from(msg.payload), vm.port, vm.host, function(err){  
+                if (vm.secure) {
+                    udp.write(Buffer.from(msg.payload))
+                } else {
+                    udp.send(Buffer.from(msg.payload), vm.port, vm.host, function (err) {
 
-                });               
-               
+                    });
+                }
+
             } catch (e) {
                 console.log('Unable to establish connection to the server. Error: ', e);
-               
-            }           
+
+            }
         });
 
-        bus.subscribe('coapudp.done', function(msg) {
-            
-            if(typeof msg.unique == 'undefined') return;
+        bus.subscribe('coapudp.done', function (msg) {
 
-            if(msg.parentEvent == 'coapackreceived') {                
-                if(msg.token)                       
-                    timers[msg.unique].releaseTimer(msg.token);            
+            if (typeof msg.unique == 'undefined') return;
+
+            if (msg.parentEvent == 'coapackreceived') {
+                if (msg.token)
+                    timers[msg.unique].releaseTimer(msg.token);
             }
 
-            if(msg.parentEvent == 'coap.disconnect') {
+            if (msg.parentEvent == 'coap.disconnect') {
                 timers[msg.unique].releaseTimer(-1);
                 delete timers[msg.unique];
                 delete connections[msg.unique];

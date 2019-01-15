@@ -229,7 +229,7 @@ function onDataRecieved(data) {
     if (decoded.getType() == ENUM.MessageType.PUBREL) {
         var id = decoded.getPacketID();
         var encPubrelPubcomp = parser.encode(Pubcomp(id));
-        this.emit('mqttPubcompOut', encPubrelPubcomp, messages.pullMessage(id));
+        this.emit('mqttPubcompOut', encPubrelPubcomp, id, messages.pullMessage(id));
     }
 
     if (decoded.getType() == ENUM.MessageType.PUBLISH) {
