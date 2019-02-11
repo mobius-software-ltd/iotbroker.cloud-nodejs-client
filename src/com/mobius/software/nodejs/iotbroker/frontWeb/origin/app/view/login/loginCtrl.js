@@ -27,8 +27,6 @@
         vm.connect = connect;
 
         init();
-
-       
       
 
         function connect() {

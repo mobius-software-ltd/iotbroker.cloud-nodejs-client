@@ -66,7 +66,6 @@ if (cluster.isMaster) {
 } else {
     app.listen('8888', function () {
         console.log('app is running on port 8888');
-        //console.log('worker ' + cluster.worker.process.pid + ' is started')
     });
 
     app.post('/connect', function onConnect(req, res) {        
@@ -222,8 +221,8 @@ if (cluster.isMaster) {
         }
 
         switch (currClient.id) {
-            case 1:
-                mqttClient.publish(currClient.name + '.disconnect', {
+            case 1:               
+                mqttClient.send(currClient.name + '.disconnect' + unique, {
                     msg: 'disconnect',
                     username: req.body.username,
                     unique: unique
@@ -309,7 +308,7 @@ if (cluster.isMaster) {
 
         switch (currClient.id) {
             case 1:
-                mqttClient.publish('mqtt.publish', {
+                mqttClient.send('mqtt.publish' + unique, {
                     msg: 'publish',
                     params: publishData,
                     username: req.body.username,
@@ -368,7 +367,7 @@ if (cluster.isMaster) {
                 return;
             }
             try {
-                mqttClient.publish('mqtt.subscribe', {
+                mqttClient.send('mqtt.subscribe' + unique, {
                     msg: 'subscribe',
                     params: req.body,
                     username: req.body.username,
@@ -448,7 +447,7 @@ if (cluster.isMaster) {
                 return;
             }
             try {
-                mqttClient.publish('mqtt.unsubscribe', {
+                mqttClient.send('mqtt.unsubscribe' + unique, {
                     msg: 'subscribe',
                     params: Array.from(req.body.topics),
                     username: req.body.username,
@@ -560,7 +559,7 @@ if (cluster.isMaster) {
             }, res);
         }
         if (currentProtocol == 4) {
-            mqttClient.getData({
+            amqpClient.getData({
                 type: 'amqp.message',
                 'message.direction': { $in: req.body.directions },
                 // 'message.topic': { $in: req.body.topics },
@@ -599,7 +598,7 @@ if (cluster.isMaster) {
             }, res);
         }
         if (currentProtocol == 4) {
-            mqttClient.getData({
+            amqpClient.getData({
                 type: 'amqp.subscribtion',
                 'subscribtion.connectionId': req.body.username,
                 'subscribtion.clientID': req.body.clientID,
