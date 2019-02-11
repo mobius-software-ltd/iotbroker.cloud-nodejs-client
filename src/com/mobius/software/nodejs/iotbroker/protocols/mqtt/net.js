@@ -37,7 +37,7 @@ var connectionParams = {};
 var timers = {};
 var tokens = {};
 var socket = {}
-
+var unique;
 if (cluster.isMaster) {
     if (!module.parent) {
         for (var i = 0; i < numCPUs; i++) {
@@ -47,9 +47,16 @@ if (cluster.isMaster) {
 } else {
     setTimeout(function () {       
 
-        bus.listen('net.newSocket', function (msg) { createSocket(msg) });
-        bus.subscribe('net.sendData', function(msg) { sendData(msg) });
-        bus.subscribe('net.done', function(msg) { connectionDone(msg) });
+        bus.listen('net.newSocket', function (msg) { 
+        
+            unique = msg.params.connection.unique;
+           
+             bus.listen('net.sendData' + unique, function(msg) { sendData(msg) });
+             bus.listen('net.done' + unique, function(msg) { connectionDone(msg) });
+
+            createSocket(msg);
+        });
+       
 
     }, 100 * (cluster.worker.id + 4));
 }
@@ -77,7 +84,7 @@ function createSocket(msg) {
         socket.connection = msg.params.connection;
         if (typeof oldUserName == 'undefined') {
             socket.on('data', function onDataReceived(data) {
-                bus.publish('mqtt.dataReceived', {
+                bus.send('mqtt.dataReceived' + unique, {
                     payload: data,
                     username: socket.username,
                     unique: socket.unique
@@ -101,7 +108,7 @@ function createSocket(msg) {
     connectionParams[msg.params.connection.unique] = msg;
     connections[msg.params.connection.unique] = socket;
     timers[msg.params.connection.unique] = new TIMERS();
-    bus.send('mqtt.socketOpened', msg);
+    bus.send('mqtt.socketOpened' + unique, msg);
 };
 
 function sendData(msg) {

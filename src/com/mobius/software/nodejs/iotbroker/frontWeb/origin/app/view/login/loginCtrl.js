@@ -27,7 +27,18 @@
         vm.connect = connect;
 
         init();
-      
+        vm.login = {
+            certificate: null,
+            clientID: "123",
+            host: "broker.iotbroker.cloud",
+            isClean: false,
+            keepalive: "10",
+            password: "galina1988",
+            port: "1883",
+            privateKey: null,
+            type: {name: "MQTT", id: 1, $$hashKey: "object:5"},
+            username: "yulian.oifa@mobius-software.com"
+           }
 
         function connect() {
             // vm.login(vm.login);

@@ -106,179 +106,178 @@ if (cluster.isMaster) {
                     msg.params.token = tokens[msg.unique].getToken();
                     CLIENT[msg.unique].Unsubscribe(msg.params);
                 });
+
+                bus.listen('mqtt.socketOpened' + unique, function(msg) {
+                    CLIENT[msg.params.connection.unique] = new mqtt();
+                    CLIENT[msg.params.connection.unique].id = msg.params.connection.username;
+                    username = msg.params.connection.username;
+                    CLIENT[msg.params.connection.unique].clientID = msg.params.connection.clientID;
+                    thisClientID = msg.params.connection.clientID 
+                    CLIENT[msg.params.connection.unique].unique = msg.params.connection.unique;
+                    unique = msg.params.connection.unique;
+                    tokens[msg.params.connection.unique] = new TOKENS();
+        
+                    CLIENT[msg.params.connection.unique].on('mqttConnect', function(data) {
+                         sendData(data, 0, 'mqttConnect'); });
+        
+                    CLIENT[msg.params.connection.unique].on('mqttDisconnect', function(data) {               
+                        sendData(data, 0, 'mqttDisconnect');
+                        connectionDone(0, 'mqttDisconnect');
+        
+                        delete CLIENT[this.unique];
+                        delete tokens[this.unique];
+                    });
+        
+                    CLIENT[msg.params.connection.unique].on('mqttConnack', function(data) {              
+                        var that = this;
+                        connectionDone(data.getPacketID(), 'mqttConnack');  
+        
+                        db.loadDatabase();
+                        if (data.getReturnCode() == 'ACCEPTED') {
+                            db.remove({ type: 'connack' }, { multi: true }, function(err, docs) {
+                                db.insert({
+                                    type: 'connack',
+                                    connectionId: that.id,
+                                    unique: that.unique,
+                                    id: guid()
+                                });
+                            });
+                            // bus.send
+                            CLIENT[this.unique].Ping();
+                        } else {
+                            db.remove({ type: 'connack' }, { multi: true }, function(err, docs) {
+        
+                            });
+                        }
+                    });
+        
+                    CLIENT[msg.params.connection.unique].on('mqttPing', function(data) {
+                         sendData(data, 0, 'mqttPing');
+        
+                        pingTimeout = setTimeout(function() {
+                            publishDisconnect();
+                        }, msg.params.connection.keepalive * 2 * 1000);
+                    });
+        
+                    CLIENT[msg.params.connection.unique].on('mqttPubrec', function(packetID) {
+                        connectionDone(packetID, 'mqttPubrec');  
+                    });
+        
+                    CLIENT[msg.params.connection.unique].on('mqttPublish', function(data, msg, packetID) {
+                        sendData(data, packetID, 'mqttPublish');
+                        connectionDone(packetID, 'mqttPublish');  
+                       
+                        if (msg.qos == 0) {
+                            msg.direction = 'out';
+                            saveMessage(msg);                   
+                        }
+                    });
+        
+                    CLIENT[msg.params.connection.unique].on('mqttPubrel', function(data, packetID) {
+                        sendData(data, packetID, 'mqttPubrel');               
+                    });
+        
+                    CLIENT[msg.params.connection.unique].on('mqttPuback', function(data, msg) {
+                        connectionDone(data.getPacketID(), 'mqttPuback'); 
+                        tokens[this.unique].releaseToken(data.getPacketID());
+                        msg.direction = 'out';
+                        saveMessage(msg);
+                        
+                    });
+        
+                    CLIENT[msg.params.connection.unique].on('mqttPubcomp', function(data, msg) {
+                        connectionDone(data.getPacketID(), 'mqttPubcomp');                
+                        tokens[this.unique].releaseToken(data.getPacketID());
+                        msg.direction = 'out';
+                        saveMessage(msg);              
+                    });
+        
+                    CLIENT[msg.params.connection.unique].on('mqttSubscribe', function(data, packetID) {
+                        sendData(data, packetID, 'mqttSubscribe');               
+                    });
+        
+                    CLIENT[msg.params.connection.unique].on('mqttSuback', function(data, msg) {
+                        connectionDone(data.getPacketID(), 'mqttSuback'); 
+                       
+                        tokens[this.unique].releaseToken(data.getPacketID());
+                        var subscribtions = [];
+                        var clientID = this.clientID
+                        db.loadDatabase();
+                        for (var i = 0; i < msg.topics.length; i++) {
+                            var subscribeData = {
+                                type: 'subscribtion',
+                                subscribtion: {
+                                    topic: msg.topics[i].topic,
+                                    qos: msg.topics[i].qos,
+                                    connectionId: msg.username,
+                                    clientID: clientID
+                                },
+                            }
+                            subscribtions.push(subscribeData);
+                            db.remove({ 'type': 'subscribtion', 'subscribtion.topic': msg.topics[i].topic }, { multi: true });
+                        }
+                        db.insert(subscribtions);
+                    });
+        
+                    CLIENT[msg.params.connection.unique].on('mqttUnsubscribe', function(data, packetID) {
+                        sendData(data, packetID, 'mqttUnsubscribe');                
+                    });
+        
+                    CLIENT[msg.params.connection.unique].on('mqttUnsuback', function(data, msg) {
+                        connectionDone(data.getPacketID(), 'mqttUnsuback');
+                       
+                        db.loadDatabase();
+                        tokens[this.unique].releaseToken(data.getPacketID());
+                        for (var i = 0; i < msg.length; i++) {
+                            db.remove({ 'type': 'subscribtion', 'subscribtion.topic': msg[i] }, { multi: true });
+                        }
+                    });
+        
+                    CLIENT[msg.params.connection.unique].on('mqttPublishIn', function(msg) {
+                        if (!msg) return;
+        
+                        msg.direction = 'in';
+                        saveMessage(msg);               
+                    });
+        
+                    CLIENT[msg.params.connection.unique].on('mqttPubackOut', function(data, msg) {
+                        if (!data) return;
+        
+                        sendData(data, msg.packetID, 'mqttPubackOut'); 
+        
+                        msg.direction = 'in';
+                        saveMessage(msg);  
+                    });
+        
+                    CLIENT[msg.params.connection.unique].on('mqttPubrecOut', function(data, msg) {
+                        if (!data) return;
+                        sendData(data, msg.packetID, 'mqttPubrecOut');  
+                    });
+        
+                    CLIENT[msg.params.connection.unique].on('mqttPubcompOut', function(data, id, msg) {               
+                        if (!data) return;
+                        sendData(data, id, 'mqttPubcompOut'); 
+                        if(msg) {
+                            msg.direction = 'in';
+                            saveMessage(msg); 
+                        }                    
+                    });
+        
+                    CLIENT[msg.params.connection.unique].on('mqttPingResp', function() {
+                        clearTimeout(pingTimeout);
+                        pingTimeout = setTimeout(function() {
+                            publishDisconnect()                   
+                        }, msg.params.connection.keepalive * 2 * 1000);
+                    });
+        
+                    CLIENT[msg.params.connection.unique].Connect(msg.params.connection);
+                });
+        
+                bus.listen('mqtt.dataReceived' + unique, function(msg) {
+                    if (typeof CLIENT[msg.unique] == 'undefined') return;
+                    CLIENT[msg.unique].onDataRecieved(Buffer.from(msg.payload));
+                });
             }
-        });
-       
-
-        bus.listen('mqtt.socketOpened', function(msg) {
-            CLIENT[msg.params.connection.unique] = new mqtt();
-            CLIENT[msg.params.connection.unique].id = msg.params.connection.username;
-            username = msg.params.connection.username;
-            CLIENT[msg.params.connection.unique].clientID = msg.params.connection.clientID;
-            thisClientID = msg.params.connection.clientID 
-            CLIENT[msg.params.connection.unique].unique = msg.params.connection.unique;
-            unique = msg.params.connection.unique;
-            tokens[msg.params.connection.unique] = new TOKENS();
-
-            CLIENT[msg.params.connection.unique].on('mqttConnect', function(data) {
-                 sendData(data, 0, 'mqttConnect'); });
-
-            CLIENT[msg.params.connection.unique].on('mqttDisconnect', function(data) {               
-                sendData(data, 0, 'mqttDisconnect');
-                connectionDone(0, 'mqttDisconnect');
-
-                delete CLIENT[this.unique];
-                delete tokens[this.unique];
-            });
-
-            CLIENT[msg.params.connection.unique].on('mqttConnack', function(data) {              
-                var that = this;
-                connectionDone(data.getPacketID(), 'mqttConnack');  
-
-                db.loadDatabase();
-                if (data.getReturnCode() == 'ACCEPTED') {
-                    db.remove({ type: 'connack' }, { multi: true }, function(err, docs) {
-                        db.insert({
-                            type: 'connack',
-                            connectionId: that.id,
-                            unique: that.unique,
-                            id: guid()
-                        });
-                    });
-                    // bus.send
-                    CLIENT[this.unique].Ping();
-                } else {
-                    db.remove({ type: 'connack' }, { multi: true }, function(err, docs) {
-
-                    });
-                }
-            });
-
-            CLIENT[msg.params.connection.unique].on('mqttPing', function(data) {
-                 sendData(data, 0, 'mqttPing');
-
-                pingTimeout = setTimeout(function() {
-                    publishDisconnect();
-                }, msg.params.connection.keepalive * 2 * 1000);
-            });
-
-            CLIENT[msg.params.connection.unique].on('mqttPubrec', function(packetID) {
-                connectionDone(packetID, 'mqttPubrec');  
-            });
-
-            CLIENT[msg.params.connection.unique].on('mqttPublish', function(data, msg, packetID) {
-                sendData(data, packetID, 'mqttPublish');
-                connectionDone(packetID, 'mqttPublish');  
-               
-                if (msg.qos == 0) {
-                    msg.direction = 'out';
-                    saveMessage(msg);                   
-                }
-            });
-
-            CLIENT[msg.params.connection.unique].on('mqttPubrel', function(data, packetID) {
-                sendData(data, packetID, 'mqttPubrel');               
-            });
-
-            CLIENT[msg.params.connection.unique].on('mqttPuback', function(data, msg) {
-                connectionDone(data.getPacketID(), 'mqttPuback'); 
-                tokens[this.unique].releaseToken(data.getPacketID());
-                msg.direction = 'out';
-                saveMessage(msg);
-                
-            });
-
-            CLIENT[msg.params.connection.unique].on('mqttPubcomp', function(data, msg) {
-                connectionDone(data.getPacketID(), 'mqttPubcomp');                
-                tokens[this.unique].releaseToken(data.getPacketID());
-                msg.direction = 'out';
-                saveMessage(msg);              
-            });
-
-            CLIENT[msg.params.connection.unique].on('mqttSubscribe', function(data, packetID) {
-                sendData(data, packetID, 'mqttSubscribe');               
-            });
-
-            CLIENT[msg.params.connection.unique].on('mqttSuback', function(data, msg) {
-                connectionDone(data.getPacketID(), 'mqttSuback'); 
-               
-                tokens[this.unique].releaseToken(data.getPacketID());
-                var subscribtions = [];
-                var clientID = this.clientID
-                db.loadDatabase();
-                for (var i = 0; i < msg.topics.length; i++) {
-                    var subscribeData = {
-                        type: 'subscribtion',
-                        subscribtion: {
-                            topic: msg.topics[i].topic,
-                            qos: msg.topics[i].qos,
-                            connectionId: msg.username,
-                            clientID: clientID
-                        },
-                    }
-                    subscribtions.push(subscribeData);
-                    db.remove({ 'type': 'subscribtion', 'subscribtion.topic': msg.topics[i].topic }, { multi: true });
-                }
-                db.insert(subscribtions);
-            });
-
-            CLIENT[msg.params.connection.unique].on('mqttUnsubscribe', function(data, packetID) {
-                sendData(data, packetID, 'mqttUnsubscribe');                
-            });
-
-            CLIENT[msg.params.connection.unique].on('mqttUnsuback', function(data, msg) {
-                connectionDone(data.getPacketID(), 'mqttUnsuback');
-               
-                db.loadDatabase();
-                tokens[this.unique].releaseToken(data.getPacketID());
-                for (var i = 0; i < msg.length; i++) {
-                    db.remove({ 'type': 'subscribtion', 'subscribtion.topic': msg[i] }, { multi: true });
-                }
-            });
-
-            CLIENT[msg.params.connection.unique].on('mqttPublishIn', function(msg) {
-                if (!msg) return;
-
-                msg.direction = 'in';
-                saveMessage(msg);               
-            });
-
-            CLIENT[msg.params.connection.unique].on('mqttPubackOut', function(data, msg) {
-                if (!data) return;
-
-                sendData(data, msg.packetID, 'mqttPubackOut'); 
-
-                msg.direction = 'in';
-                saveMessage(msg);  
-            });
-
-            CLIENT[msg.params.connection.unique].on('mqttPubrecOut', function(data, msg) {
-                if (!data) return;
-                sendData(data, msg.packetID, 'mqttPubrecOut');  
-            });
-
-            CLIENT[msg.params.connection.unique].on('mqttPubcompOut', function(data, id, msg) {               
-                if (!data) return;
-                sendData(data, id, 'mqttPubcompOut'); 
-                if(msg) {
-                    msg.direction = 'in';
-                    saveMessage(msg); 
-                }                    
-            });
-
-            CLIENT[msg.params.connection.unique].on('mqttPingResp', function() {
-                clearTimeout(pingTimeout);
-                pingTimeout = setTimeout(function() {
-                    publishDisconnect()                   
-                }, msg.params.connection.keepalive * 2 * 1000);
-            });
-
-            CLIENT[msg.params.connection.unique].Connect(msg.params.connection);
-        });
-
-        bus.subscribe('mqtt.dataReceived', function(msg) {
-            if (typeof CLIENT[msg.unique] == 'undefined') return;
-            CLIENT[msg.unique].onDataRecieved(Buffer.from(msg.payload));
         });
 
     }, 100 * cluster.worker.id);
@@ -302,7 +301,7 @@ function getData(req, res) {
 }
 
 function sendData(payload, packetID, parentEvent) {       
-       bus.publish('net.sendData', {
+    bus.send('net.sendData' + unique, {
         payload: payload,
         username: username,
         packetID: packetID,
@@ -312,7 +311,7 @@ function sendData(payload, packetID, parentEvent) {
 }
 
 function connectionDone(packetID, parentEvent) {
-    bus.publish('net.done', {
+    bus.send('net.done' + unique, {
         packetID: packetID,
         username: username,
         parentEvent: parentEvent,
@@ -340,7 +339,7 @@ function saveMessage(msg) {
 }
 
 function publishDisconnect() {
-    bus.publish('mqtt.disconnect' + unique, {
+    bus.send('mqtt.disconnect' + unique, {
         msg: 'disconnect',
         username: username,
         unique: unique
