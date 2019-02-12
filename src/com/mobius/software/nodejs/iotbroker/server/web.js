@@ -68,7 +68,7 @@ if (cluster.isMaster) {
         console.log('app is running on port 8888');
     });
 
-    app.post('/connect', function onConnect(req, res) {        
+    app.post('/connect', function onConnect(req, res) {           
         var Datastore = require('nedb');
         var dbUsers = new Datastore({ filename: 'users' });
         unique = req.body.clientID + Math.random().toString(18).substr(2, 16);
@@ -230,7 +230,7 @@ if (cluster.isMaster) {
                 res.send('disconnected');
                 break;
             case 2:
-                snClient.publish(currClient.name + '.disconnect', {
+                snClient.send(currClient.name + '.disconnect' + unique, {
                     msg: 'disconnect',
                     keepalive: req.body.keepalive,
                     clientID: req.body.clientID,
@@ -239,7 +239,7 @@ if (cluster.isMaster) {
                 res.send('disconnected');
                 break;
             case 3:
-                coapClient.publish(currClient.name + '.disconnect', {
+                coapClient.send(currClient.name + '.disconnect' + unique, {
                     msg: 'disconnect',
                     keepalive: req.body.keepalive,
                     clientID: req.body.clientID,
@@ -248,7 +248,7 @@ if (cluster.isMaster) {
                 res.send('disconnected');
                 break;
             case 4:
-                amqpClient.publish(currClient.name + '.disconnect', {
+                amqpClient.send(currClient.name + '.disconnect' + unique, {
                     msg: 'disconnect',
                     username: req.body.username,
                     unique: unique
@@ -256,7 +256,7 @@ if (cluster.isMaster) {
                 res.send('disconnected');
                 break;
             case 5:
-                wsClient.publish('ws.disconnect', {
+                wsClient.send('ws.disconnect' + unique, {
                     msg: 'disconnect',
                     username: req.body.username,
                     unique: unique
@@ -317,7 +317,7 @@ if (cluster.isMaster) {
                 break;
 
             case 2:
-                snClient.publish('sn.publish', {
+                snClient.send('sn.publish' + unique, {
                     msg: 'publish',
                     params: publishData,
                     clientID: req.body.clientID,
@@ -325,7 +325,7 @@ if (cluster.isMaster) {
                 });
                 break;
             case 3:
-                coapClient.publish('coap.publish', {
+                coapClient.send('coap.publish' + unique, {
                     msg: 'publish',
                     params: publishData,
                     clientID: req.body.clientID,
@@ -334,7 +334,7 @@ if (cluster.isMaster) {
                 break;
 
             case 4:
-                amqpClient.publish('amqp.publish', {
+                amqpClient.send('amqp.publish' + unique, {
                     msg: 'publish',
                     params: publishData,
                     username: req.body.username,
@@ -343,7 +343,7 @@ if (cluster.isMaster) {
                 break;
 
             case 5:
-                wsClient.publish('ws.publish', {
+                wsClient.send('ws.publish' + unique, {
                     msg: 'publish',
                     params: publishData,
                     username: req.body.username,
@@ -380,7 +380,7 @@ if (cluster.isMaster) {
         }
         if (currentProtocol == 2) {
             try {
-                snClient.publish('sn.subscribe', {
+                snClient.send('sn.subscribe' + unique, {
                     msg: 'subscribe',
                     params: req.body,
                 });
@@ -391,7 +391,7 @@ if (cluster.isMaster) {
         }
         if (currentProtocol == 3) {
             try {
-                coapClient.publish('coap.subscribe', {
+                coapClient.send('coap.subscribe'  + unique, {
                     msg: 'subscribe',
                     params: req.body,
                 });
@@ -406,7 +406,7 @@ if (cluster.isMaster) {
                 return;
             }
             try {
-                amqpClient.publish('amqp.subscribe', {
+                amqpClient.send('amqp.subscribe' + unique, {
                     msg: 'subscribe',
                     params: req.body,
                     username: req.body.username,
@@ -423,7 +423,7 @@ if (cluster.isMaster) {
                 return;
             }
             try {
-                wsClient.publish('ws.subscribe', {
+                wsClient.send('ws.subscribe' + unique, {
                     msg: 'subscribe',
                     params: req.body,
                     username: req.body.username,
@@ -464,7 +464,7 @@ if (cluster.isMaster) {
                 return;
             }
             try {
-                snClient.publish('sn.unsubscribe', {
+                snClient.send('sn.unsubscribe' + unique, {
                     msg: 'subscribe',
                     params: Array.from(req.body.topics),
                     clientID: req.body.clientID,
@@ -482,7 +482,7 @@ if (cluster.isMaster) {
                 return;
             }
             try {
-                coapClient.publish('coap.unsubscribe', {
+                coapClient.send('coap.unsubscribe' + unique, {
                     msg: 'unsubscribe',
                     params: Array.from(req.body.topics),
                     clientID: req.body.clientID,
@@ -500,8 +500,7 @@ if (cluster.isMaster) {
                 return;
             }
             try {
-
-                amqpClient.publish('amqp.unsubscribe', {
+                amqpClient.send('amqp.unsubscribe' + unique, {
                     msg: 'subscribe',
                     params: req.body.topic,
                     username: req.body.username,
@@ -518,7 +517,7 @@ if (cluster.isMaster) {
                 return;
             }
             try {
-                wsClient.publish('ws.unsubscribe', {
+                wsClient.send('ws.unsubscribe' + unique, {
                     msg: 'subscribe',
                     params: Array.from(req.body.topics),
                     username: req.body.username,
