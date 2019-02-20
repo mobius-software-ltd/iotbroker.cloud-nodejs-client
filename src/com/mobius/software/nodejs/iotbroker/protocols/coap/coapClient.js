@@ -57,160 +57,16 @@ if (cluster.isMaster) {
     setTimeout(function () {
 
       
-        bus.listen('coap.connect', function (msg) {           
-            dbUsers.loadDatabase();
-            dbUsers.find({
-                clientID: msg.params.connection.clientID,
-                port: msg.params.connection.port,
-                host: msg.params.connection.host,
-            }, function (err, docs) {               
-                if(docs.length) {
-                    for(var i=0; i<docs.length; i++) {
-                        process.send(docs[i]);
-                        dbUsers.remove({ 'unique': docs[i].unique }, { multi: true });                      
-                    }                 
-                }
-            });           
-          
-            bus.send('coapudp.newSocket', msg);
-            db.loadDatabase();
-            db.remove({ 'type': 'connection', 'connection.clientID': msg.params.connection.clientID }, { multi: true });
-            db.insert(msg.params);
-
-            CLIENT[msg.params.connection.unique] = new coap();
-            CLIENT[msg.params.connection.unique].id = msg.params.connection.clientID;
-            CLIENT[msg.params.connection.unique].unique = msg.params.connection.unique;
-            CLIENT[msg.params.connection.unique].keepalive = msg.params.connection.keepalive;
-            CLIENT[msg.params.connection.unique].qos = msg.params.connection.qos;
-            tokens[msg.params.connection.unique] = new TOKENS();
-            thisClientID = msg.params.connection.clientID;
+        bus.listen('coap.connect', function (msg) { processConnect(msg)        
             unique = msg.params.connection.unique;
-            dbUsers.loadDatabase();
-            var user = {
-                type: 'coap',
-                worker: cluster.worker.process.pid,
-                unique: msg.params.connection.unique,
-                clientID: msg.params.connection.clientID,
-                port: msg.params.connection.port,
-                host: msg.params.connection.host,
-            }
-            dbUsers.insert(user);
-
             if(unique){
-                bus.listen('coap.subscribe' + unique, function (msg) {          
-            
-                    if (typeof CLIENT[msg.params.unique] == 'undefined') return;              
-                    msg.params.token = tokens[msg.params.unique].getToken(); 
-                    CLIENT[msg.params.unique].subscribtion = {};
-                    CLIENT[msg.params.unique].subscribtion[msg.params.token] = msg.params;                               
-                    CLIENT[msg.params.unique].Subscribe(msg.params);
-                });
-        
-                bus.listen('coap.unsubscribe' + unique, function (msg) {
-                    if (typeof CLIENT[msg.unique] == 'undefined') return;
-                   
-                    msg.token = tokens[msg.unique].getToken();
-                    CLIENT[msg.unique].Unsubscribe(msg);
-                });
-        
-                bus.listen('coap.publish' + unique, function (msg) { 
-                    if (typeof CLIENT[msg.unique] == 'undefined') return;
-                    msg.params.token = tokens[msg.unique].getToken();
-                    msg.params.clientID = msg.clientID;
-                    msg.params.unique = msg.unique;
-                    msg.params.qos = msg.params.qos;
-                    CLIENT[msg.unique].publish = {}
-                    CLIENT[msg.unique].publish[msg.params.token] = msg.params;
-                    CLIENT[msg.unique].Publish(msg.params);
-                });
-        
-        
-                bus.listen('coap.disconnect' + unique, function (msg) {
-                    if (typeof CLIENT[msg.unique] == 'undefined') return;
-                    db.loadDatabase();
-                    db.remove({ 'type': 'connection', 'connection.username': msg.clientID }, { multi: true });
-                    connectionDone(null, 'coap.disconnect');           
-                });
-        
-                bus.listen('coap.datareceived' + unique, function (msg) {                
-                    if (typeof CLIENT[msg.unique] == 'undefined') return;            
-                    CLIENT[msg.unique].onDataRecieved(Buffer.from(msg.payload));
-                });      
-                
-                bus.listen('coap.startping' + unique, function (msg) {                
-                    if (typeof CLIENT[msg.unique] == 'undefined') return;      
-                    CLIENT[msg.unique].Ping(CLIENT[msg.unique].id);   
-                }); 
-        
+                bus.listen('coap.subscribe' + unique, function (msg) { processSubscribe(msg) });
+                bus.listen('coap.unsubscribe' + unique, function (msg) { processUnsubscribe(msg) });
+                bus.listen('coap.publish' + unique, function (msg) { processPublish(msg) });
+                bus.listen('coap.disconnect' + unique, function (msg) { processDisconnect(msg) });
+                bus.listen('coap.datareceived' + unique, function (msg) { processDataReceived(msg) });
+                bus.listen('coap.startping' + unique, function (msg) { processPing(msg) }); 
             }
-
-
-            CLIENT[msg.params.connection.unique].on('coappingreq', function (data) {
-                sendData(data, null, 'coappingreq');
-            });
-
-            CLIENT[msg.params.connection.unique].on('coapsubscribe', function (data, token) {
-                sendData(data, token, 'coapsubscribe');
-            });
-
-            CLIENT[msg.params.connection.unique].on('coapunsubscribe', function (data, token) {
-                sendData(data, token, 'coapunsubscribe');
-            });
-
-            CLIENT[msg.params.connection.unique].on('coappublish', function (data, token) {
-                sendData(data, token, 'coappublish');
-            });
-
-            CLIENT[msg.params.connection.unique].on('coappublishreceived', function (data) {
-                var msg = {
-                    qos: Buffer.from(data.getOptionValue(ENUM.CoapOptionDefinitions.COAP_ACCEPT_OPTION), 'utf8').readUInt16BE(0),                
-                    topic: data.getOptionValue(ENUM.CoapOptionDefinitions.COAP_URI_PATH_OPTION),
-                    content: data.getPayload().toString(),
-                }
-                saveMessage(msg);
-            });
-
-            CLIENT[msg.params.connection.unique].on('coapsubackreceived', function (data, token) { 
-                if(!token) return 
-                db.loadDatabase();               
-                    var subscribeData = {
-                        type: 'coapsubscribtion',
-                        subscribtion: {
-                            token: token,
-                            qos: CLIENT[msg.params.connection.unique].subscribtion[token].qos,
-                            topic: CLIENT[msg.params.connection.unique].subscribtion[token].topics[0].topic,
-                            connectionId: CLIENT[msg.params.connection.unique].id,
-                            unique: CLIENT[msg.params.connection.unique].unique,
-                            //topicID: data.getTopicID()
-                        },
-                    }
-                db.insert(subscribeData);               
-            });
-
-            CLIENT[msg.params.connection.unique].on('coapunsubackreceived', function (data, token) {    
-                db.loadDatabase();
-                db.remove({ 'type': 'coapsubscribtion', 'subscribtion.token': token }, { multi: true });  
-            });
-
-            CLIENT[msg.params.connection.unique].on('coappubackreceived', function (token) {  
-                if(!token) return 
-                var msg = CLIENT[msg.params.connection.unique].publish[token];
-                msg.token = token;
-                msg.direction = 'out'
-                saveMessage(msg)
-                
-            });
-
-            CLIENT[msg.params.connection.unique].on('coapsendresponse', function (data, parentEvent) {
-                sendData(data, null, parentEvent);
-            });
-
-            CLIENT[msg.params.connection.unique].on('coapackreceived', function (data) {               
-                connectionDone(null, 'coapackreceived', data.getToken());
-            });
-
-
-
         })
     }, 100 * cluster.worker.id);
 
@@ -234,15 +90,6 @@ function getData(req, res) {
     });
 }
 
-function sendData(payload, token, parentEvent) {       
-    bus.send('coapudp.senddata' + unique, {
-        payload: payload,
-        clientID: thisClientID,
-        unique: unique,
-        parentEvent: parentEvent,
-        token: token
-    });  
-}
 function connectionDone(packetID, parentEvent, token) {
     bus.send('coapudp.done' + unique, {
         clientID: thisClientID,
@@ -253,25 +100,89 @@ function connectionDone(packetID, parentEvent, token) {
     });
 }
 
-function saveMessage(msg) {
-    var message = {
-        type: 'coapmessage',
-        message: {
-            topic: msg.topic || '',
-            qos: msg.qos || '',
-            content: msg.content || '',
-            connectionId: thisClientID,
-            direction: msg.direction || 'in',
-            unique: unique,
-            token: msg.token || ''
-        },
-        id: guid(),
-        time: (new Date()).getTime()
-    }
-
+function processConnect(msg) {
+    dbUsers.loadDatabase();
+    dbUsers.find({
+        clientID: msg.params.connection.clientID,
+        port: msg.params.connection.port,
+        host: msg.params.connection.host,
+    }, function (err, docs) {               
+        if(docs.length) {
+            for(var i=0; i<docs.length; i++) {
+                process.send(docs[i]);
+                dbUsers.remove({ 'unique': docs[i].unique }, { multi: true });                      
+            }                 
+        }
+    });           
+  
+    bus.send('coapudp.newSocket', msg);
     db.loadDatabase();
-    db.insert(message);
+    db.remove({ 'type': 'connection', 'connection.clientID': msg.params.connection.clientID }, { multi: true });
+    db.insert(msg.params);
+
+    CLIENT[msg.params.connection.unique] = new coap();
+    CLIENT[msg.params.connection.unique].id = msg.params.connection.clientID;
+    CLIENT[msg.params.connection.unique].unique = msg.params.connection.unique;
+    CLIENT[msg.params.connection.unique].keepalive = msg.params.connection.keepalive;
+    CLIENT[msg.params.connection.unique].qos = msg.params.connection.qos;
+    tokens[msg.params.connection.unique] = new TOKENS();
+    thisClientID = msg.params.connection.clientID;
+   
+    dbUsers.loadDatabase();
+    var user = {
+        type: 'coap',
+        worker: cluster.worker.process.pid,
+        unique: msg.params.connection.unique,
+        clientID: msg.params.connection.clientID,
+        port: msg.params.connection.port,
+        host: msg.params.connection.host,
+    }
+    dbUsers.insert(user);
+} 
+
+function processSubscribe(msg) {    
+    if (typeof CLIENT[msg.params.unique] == 'undefined') return;              
+    msg.params.token = tokens[msg.params.unique].getToken(); 
+    CLIENT[msg.params.unique].subscribtion = {};
+    CLIENT[msg.params.unique].subscribtion[msg.params.token] = msg.params;                               
+    CLIENT[msg.params.unique].Subscribe(msg.params);
 }
+
+function processUnsubscribe(msg) {
+    if (typeof CLIENT[msg.unique] == 'undefined') return;
+                   
+    msg.token = tokens[msg.unique].getToken();
+    CLIENT[msg.unique].Unsubscribe(msg);
+}
+
+function processPublish(msg) {
+    if (typeof CLIENT[msg.unique] == 'undefined') return;
+    msg.params.token = tokens[msg.unique].getToken();
+    msg.params.clientID = msg.clientID;
+    msg.params.unique = msg.unique;
+    msg.params.qos = msg.params.qos;
+    CLIENT[msg.unique].publish = {}
+    CLIENT[msg.unique].publish[msg.params.token] = msg.params;
+    CLIENT[msg.unique].Publish(msg.params);
+}
+
+function processDisconnect(msg) {
+    if (typeof CLIENT[msg.unique] == 'undefined') return;
+    db.loadDatabase();
+    db.remove({ 'type': 'connection', 'connection.username': msg.clientID }, { multi: true });
+    connectionDone(null, 'coap.disconnect');    
+}
+
+function processDataReceived(msg) {
+    if (typeof CLIENT[msg.unique] == 'undefined') return;            
+    CLIENT[msg.unique].onDataRecieved(Buffer.from(msg.payload));
+}
+
+function processPing(msg) {
+    if (typeof CLIENT[msg.unique] == 'undefined') return;      
+    CLIENT[msg.unique].Ping(CLIENT[msg.unique].id, msg.unique); 
+}     
+
 var methods = {
     send: send,
     publish: publish,

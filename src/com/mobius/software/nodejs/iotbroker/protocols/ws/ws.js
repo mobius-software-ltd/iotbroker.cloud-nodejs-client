@@ -47,6 +47,18 @@ var Timer = require('./lib/Timer');
 var TOKENS = require('./lib/Tokens');
 var TIMERS = require('./lib/Timers');
 
+var Datastore = require('nedb');
+var db = new Datastore({ filename: 'data' });
+var bus = require('servicebus').bus({
+    queuesFile: `.queues.ws.${process.pid}`
+});
+var guid = require('./lib/guid');
+var tokens = {};
+var pingTimeout = {};
+var unique;
+var username;
+var thisClientID;
+var keepalive;
 
 function WsClient() {
     this.ENUM = ENUM;
@@ -91,121 +103,131 @@ var messages = Store();
 var subscribtions = Store();
 var unsubscribtions = Store();
 
-function disconnect(params) {    
+function disconnect(params) {
+    var packetID = tokens[params].getToken();
     var disconnect = {
         packet: 14
     }
-    this.emit('wsDisconnect', JSON.stringify(disconnect), params);
+    processDisconnect(JSON.stringify(disconnect), packetID)
 }
 
-function subscribe(params) {    
+function subscribe(params) {
+    var token = tokens[unique].getToken();
     var topics = [];
     for (var i = 0; i < params.topics.length; i++) {
-       topics.push({name: params.topics[i].topic,
-                    qos: params.topics[i].qos, })  
-    }    
+        topics.push({
+            name: params.topics[i].topic,
+            qos: params.topics[i].qos,
+        })
+    }
 
     var subscribe = {
         packet: 8,
-        packetID: params.token,
+        packetID: token,
         topics: topics
-     }
-    subscribtions.pushMessage(params.token, params)
-    this.emit('wsSubscribe', JSON.stringify(subscribe), params.token)
+    }
+    subscribtions.pushMessage(token, params);
+    sendData(JSON.stringify(subscribe), token, 'wsSubscribe');
 }
 
-function unsubscribe(topic, token) {  
-   
+function unsubscribe(topic) {
+    var token = tokens[unique].getToken();
     var unsuback = {
-        packet:10,
+        packet: 10,
         packetID: token,
         topics: topic
     }
-    
-    unsubscribtions.pushMessage(token, topic[0]);
-    this.emit('wsUnsubscribe', JSON.stringify(unsuback), token);
+    unsubscribtions.pushMessage(token, topic[0]);   
+    sendData(JSON.stringify(unsuback), token, 'wsUnsubscribe');
 }
 
-function publish(params) {  
+function publish(params) {
     var parentEvent = 'wsPublish'
+    var token = null;
+    if (params.params.qos != 0) {
+        token = tokens[unique].getToken();
+    }
     if (params.params.qos == 0) {
-        params.params.token = null;
         parentEvent = 'wsPublish0'
     }
 
     var publish = {
-        packet:3,
-        packetID:params.params.token,
-        topic:{
-           name:params.params.topic,
-           qos:params.params.qos
+        packet: 3,
+        packetID: token,
+        topic: {
+            name: params.params.topic,
+            qos: params.params.qos
         },
         content: Buffer.from(params.params.content).toString('base64'),
-        retain:params.params.retain,
-        dup:params.params.isDupe
-     }
-    messages.pushMessage(params.token, params);
-    this.emit('wsPublish', JSON.stringify(publish), params.params, params.params.token, parentEvent);
+        retain: params.params.retain,
+        dup: params.params.isDupe
+    }
+    messages.pushMessage(token, params);
+    processPublish(JSON.stringify(publish), params.params, token, parentEvent)
 }
 
 function connect(params) {
     conntectionParams = params;
-   var connect = {
-    packet:1,
-    protocolLevel:4,
-    protocolName:"MQTT",
-    username: params.username,
-    password: params.password,
-    clientID: params.clientID,
-    cleanSession: params.isClean,
-    keepalive: params.keepalive,
-    willFlag:true,
-    usernameFlag:true,
-    passwordFlag:true,
-    will:null
-   }
-    if(params.will)
-    if(params.will.topic && params.will.content) {
-        connect.will = {
-            topic: {
-                name: params.will.topic,
-                qos: params.will.qos
-            },
-            content: Buffer.from(params.will.content).toString('base64'),
-            retain:params.will.retain}
+    keepalive = params.keepalive;
+    unique = params.unique;
+    username = params.username;
+    thisClientID = params.clientID;
+    tokens[unique] = new TOKENS();
+    var connect = {
+        packet: 1,
+        protocolLevel: 4,
+        protocolName: "MQTT",
+        username: params.username,
+        password: params.password,
+        clientID: params.clientID,
+        cleanSession: params.isClean,
+        keepalive: params.keepalive,
+        willFlag: true,
+        usernameFlag: true,
+        passwordFlag: true,
+        will: null
     }
+    if (params.will)
+        if (params.will.topic && params.will.content) {
+            connect.will = {
+                topic: {
+                    name: params.will.topic,
+                    qos: params.will.qos
+                },
+                content: Buffer.from(params.will.content).toString('base64'),
+                retain: params.will.retain
+            }
+        }
 
-   
-    var strConnect = JSON.stringify(connect)
-    
-   this.emit('wsConnect', strConnect);
+
+    var strConnect = JSON.stringify(connect);
+    sendData(strConnect, 1, 'wsConnect');
 
 }
 
 function onDataRecieved(data) {
     var that = this;
     var decoded = {};
-  
-    var resp = data;
-        resp.payload.data = JSON.parse(data.payload.utf8Data);
-    var packet = resp.payload.data.packet
-  
-    console.log("Packet: ");
-    console.log(packet);
-   
 
-    if (packet == ENUM.MessageType.CONNACK) {      
-        this.emit('wsConnack', resp);
+    var resp = data;
+    resp.payload.data = JSON.parse(data.payload.utf8Data);
+    var packet = resp.payload.data.packet;
+
+    if (packet == ENUM.MessageType.CONNACK) {
+        //this.emit('wsConnack', resp);
+        processConnack(resp)
     }
 
     if (packet == ENUM.MessageType.PINGRESP) {
-       // connectionStatus = ENUM.PingStatus.RECEIVED;
-        this.emit('wsPingResp', resp);
+        clearTimeout(pingTimeout);
+        pingTimeout = setTimeout(function () {
+            publishDisconnect();
+        }, keepalive * 2 * 1000);
     }
 
-    if (packet == ENUM.MessageType.PUBACK) {     
+    if (packet == ENUM.MessageType.PUBACK) {
         var id = resp.payload.data.packetID;
-        this.emit('wsPuback', resp, id);
+        processPuback(id, messages.pullMessage(id));
     }
 
     if (packet == ENUM.MessageType.PUBREC) {
@@ -213,23 +235,23 @@ function onDataRecieved(data) {
         var pubrel = {
             packet: 6,
             packetID: id,
-         }
-        this.emit('wsPubrel', JSON.stringify(pubrel), id);       
+        }
+        sendData(JSON.stringify(pubrel), id, 'wsPubrel');
     }
 
     if (packet == ENUM.MessageType.PUBCOMP) {
         var id = resp.payload.data.packetID;
-        this.emit('wsPubcomp', id, messages.pullMessage(id));
+        processPubcomp(id, messages.pullMessage(id))
     }
 
-    if (packet == ENUM.MessageType.SUBACK) {  
-        var id =  resp.payload.data.packetID;         
-        this.emit('wsSuback', resp, subscribtions.pullMessage(id));
+    if (packet == ENUM.MessageType.SUBACK) {
+        var id = resp.payload.data.packetID;
+        processSuback(resp, subscribtions.pullMessage(id))
     }
 
     if (packet == ENUM.MessageType.UNSUBACK) {
         var id = resp.payload.data.packetID;
-        this.emit('wsUnsuback', id, unsubscribtions.pullMessage(id));
+        processUnsuback(id, unsubscribtions.pullMessage(id))
     }
 
     if (packet == ENUM.MessageType.PUBREL) {
@@ -238,14 +260,14 @@ function onDataRecieved(data) {
             packet: 7,
             packetID: id
         }
-        this.emit('wsPubcompOut', JSON.stringify(pubcomp), id, messages.pullMessage(id));
+        processPubcompOut(JSON.stringify(pubcomp), id, messages.pullMessage(id))
     }
 
     if (packet == ENUM.MessageType.PUBLISH) {
-        var id = resp.payload.data.packetID;  
+        var id = resp.payload.data.packetID;
         var publishTopic = resp.payload.data.topic.name;
         var publishQos = resp.payload.data.topic.qos;
-        var publishContent =  Buffer.from(resp.payload.data.content, 'base64').toString('ascii');
+        var publishContent = Buffer.from(resp.payload.data.content, 'base64').toString('ascii');
         console.log("Publish received!. id:", id);
         console.log("Publish qos:", publishQos);
         console.log("Publish topic:", publishTopic);
@@ -255,24 +277,27 @@ function onDataRecieved(data) {
             topic: publishTopic,
             qos: publishQos,
             content: publishContent
-        }       
+        }
         switch (publishQos) {
             case 0:
-                this.emit('wsPublishIn', message);
+                if (message)
+                    saveMessage(message);
                 break;
-            case 1:              
+            case 1:
                 var puback = {
                     packet: 4,
                     packetID: id
                 }
-                this.emit('wsPubackOut', JSON.stringify(puback), message);
+                processPubackout(JSON.stringify(puback), message);
                 break;
             case 2:
                 var pubrec = {
                     packet: 5,
                     packetID: id
                 }
-                this.emit('wsPubrecOut', JSON.stringify(pubrec), message);
+                if (JSON.stringify(pubrec))
+                    sendData(JSON.stringify(pubrec), message.packetID, 'wsPubrecOut');
+
                 messages.pushMessage(id, message)
                 break;
             default:
@@ -281,9 +306,151 @@ function onDataRecieved(data) {
     }
 }
 
-function ping() { 
+function ping() {
     var data = {
         packet: 12
     }
-    this.emit('wsPing', JSON.stringify(data));
+    sendData(JSON.stringify(data), 0, 'wsPing');
+    pingTimeout = setTimeout(function () {
+        publishDisconnect();
+    }, keepalive * 10 * 1000);
+}
+
+function sendData(payload, packetID, parentEvent) {
+    bus.send('wss.sendData' + unique, {
+        payload: payload,
+        username: username,
+        packetID: packetID,
+        parentEvent: parentEvent,
+        unique: unique
+    });
+}
+
+function connectionDone(packetID, parentEvent) {
+    bus.send('wss.done' + unique, {
+        packetID: packetID,
+        username: username,
+        parentEvent: parentEvent,
+        unique: unique
+    });
+}
+
+function saveMessage(msg) {
+    var message = {
+        type: 'wsmessage',
+        message: {
+            topic: msg.topic,
+            qos: msg.qos,
+            content: msg.content,
+            connectionId: username,
+            direction: msg.direction || 'in',
+            unique: unique,
+            clientID: thisClientID
+        },
+        id: guid(),
+        time: (new Date()).getTime()
+    }
+    db.loadDatabase();
+    db.insert(message);
+}
+
+function publishDisconnect() {
+    bus.send('ws.disconnect' + unique, {
+        msg: 'disconnect',
+        username: username,
+        unique: unique,
+        parentEvent: 'wsDisconnect'
+    });
+}
+
+function processDisconnect(data, id) {
+    sendData(data, id, 'wsDisconnect');
+    connectionDone(id, 'wsDisconnect');
+
+    delete CLIENT[this.unique];
+    delete tokens[unique];
+}
+
+function processConnack(data) {
+    var that = this;
+
+    connectionDone(1, 'wsConnack');
+    db.loadDatabase();
+    if (data.payload.data.returnCode == ENUM.ConnackCode.ACCEPTED) {
+        db.remove({ type: 'connack' }, { multi: true }, function (err, docs) {
+            db.insert({
+                type: 'connack',
+                connectionId: username,
+                unique: unique,
+                id: guid()
+            });
+        });
+        ping();
+    } else {
+        db.remove({ type: 'connack' }, { multi: true }, function (err, docs) { });
+    }
+}
+
+function processPublish(data, msg, packetID, parent) {
+    sendData(data, packetID, parent);
+    connectionDone(packetID, 'wsPublish');
+    if (msg.qos == 0) {
+        msg.direction = 'out';
+        saveMessage(msg);
+    }
+}
+
+function processPuback(id, msg) {
+    connectionDone(id, 'wsPuback');
+    tokens[unique].releaseToken(id);
+    msg.params.direction = 'out';
+    saveMessage(msg.params);
+};
+
+function processPubcomp(packetID, msg) {
+    connectionDone(packetID, 'wsPubcomp');
+    tokens[unique].releaseToken(packetID);
+    msg.params.direction = 'out';
+    saveMessage(msg.params);
+}
+
+function processSuback(data, msg) {
+    connectionDone(data.payload.data.packetID, 'wsSuback');
+    tokens[unique].releaseToken(data.payload.data.packetID);
+    var subscribtions = [];
+    db.loadDatabase();
+    if (msg.topics)
+        for (var i = 0; i < msg.topics.length; i++) {
+            var subscribeData = {
+                type: 'wssubscribtion',
+                subscribtion: {
+                    topic: msg.topics[i].topic ? msg.topics[i].topic : null,
+                    qos: msg.topics[i].qos ? msg.topics[i].qos : null,
+                    connectionId: msg.username,
+                },
+            }
+            subscribtions.push(subscribeData);
+            db.remove({ 'type': 'subscribtion', 'subscribtion.topic': msg.topics[i].topic }, { multi: true });
+        }
+    db.insert(subscribtions);
+}
+
+function processUnsuback(packetID, msg) {
+    connectionDone(packetID, 'wsUnsuback');
+    db.loadDatabase();
+    tokens[unique].releaseToken(packetID);
+    db.remove({ 'type': 'wssubscribtion', 'subscribtion.topic': msg }, { multi: true });
+}
+
+function processPubackout(data, msg) {
+    if (!data) return;
+    sendData(data, msg.packetID, 'wsPubackOut');
+    saveMessage(msg);
+}
+
+function processPubcompOut(data, id, msg) {
+    if (!data) return;
+    sendData(data, id, 'wsPubcompOut');
+    if (msg)
+        saveMessage(msg);
 }

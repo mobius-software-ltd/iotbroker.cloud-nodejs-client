@@ -24,6 +24,7 @@
             vm.message.username = vm.sessionData.username;
             vm.message.clientID = vm.sessionData.clientID;
             vm.message.type = vm.sessionData.type;
+            vm.message.unique = vm.sessionData.unique;
             dataFactory.publish(vm.message);
         }
 

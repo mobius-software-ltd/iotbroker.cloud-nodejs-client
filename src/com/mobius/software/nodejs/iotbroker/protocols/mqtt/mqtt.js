@@ -48,6 +48,20 @@ var Timer = require('./lib/Timer');
 var TOKENS = require('./lib/Tokens');
 var TIMERS = require('./lib/Timers');
 
+var Datastore = require('nedb');
+var db = new Datastore({ filename: 'data' });
+var bus = require('servicebus').bus({
+    queuesFile: `.queues.mqtt.${process.pid}`
+});
+var guid = require('./lib/guid');
+var CLIENT = {};
+var tokens = {};
+var pingTimeout = {};
+var unique;
+var username;
+var thisClientID;
+var keepalive;
+
 
 function MqttClient() {
     this.ENUM = ENUM;
@@ -100,7 +114,7 @@ function disconnect(params) {
     } catch (e) {
         console.log('Parser can`t encode provided params.');
     }
-    this.emit('mqttDisconnect', encDisconnect);
+    processDisconnect(encDisconnect, 0, 'mqttDisconnect')
 }
 
 function subscribe(params) {
@@ -116,7 +130,7 @@ function subscribe(params) {
         console.log('Parser can`t encode provided params.');
     }
     subscribtions.pushMessage(params.token, params)
-    this.emit('mqttSubscribe', encSubscribe, params.token)
+    sendData(encSubscribe, params.token, 'mqttSubscribe');   
 }
 
 function unsubscribe(params) {
@@ -129,7 +143,7 @@ function unsubscribe(params) {
         console.log('Parser can`t encode provided params.');
     }
     unsubscribtions.pushMessage(params.token, topics);
-    this.emit('mqttUnsubscribe', encUnsubscribe, params.token);
+    sendData(data, packetID, 'mqttUnsubscribe');  
 }
 
 function publish(params) {
@@ -142,13 +156,17 @@ function publish(params) {
     } catch (error) {
         console.log('Parser can`t encode provided params.');
     }
-
     messages.pushMessage(params.token, params);
-    this.emit('mqttPublish', encPublish, params, params.token);
+    processPublish(encPublish, params, params.token)
 }
 
 function connect(params) {
     conntectionParams = params;
+    keepalive = params.keepalive;
+    unique = params.unique;
+    username = params.username;
+    thisClientID = params.clientID 
+    tokens[unique] = new TOKENS();
     var connect = Connect({
         username: params.username,
         password: params.password,
@@ -166,7 +184,8 @@ function connect(params) {
     } catch (error) {
         console.log('Parser can`t encode provided params.');
     }
-    this.emit('mqttConnect', encConnect);
+   
+    processConnect(encConnect, 0, 'mqttConnect', unique, username)
 }
 
 function onDataRecieved(data) {
@@ -181,29 +200,28 @@ function onDataRecieved(data) {
         console.log('Parser unadble to decode received data.');
     }
 
-    if (decoded.getType() == ENUM.MessageType.CONNACK) {
-        this.emit('mqttConnack', decoded);
+    if (decoded.getType() == ENUM.MessageType.CONNACK) {      
+       processConnack(decoded, unique, username)
     }
 
     if (decoded.getType() == ENUM.MessageType.PINGRESP) {
         connectionStatus = ENUM.PingStatus.RECEIVED;
-        // console.log("Pingresp received!");
-        this.emit('mqttPingResp');
+       clearTimeout(pingTimeout);
+     
     }
 
     if (decoded.getType() == ENUM.MessageType.PUBACK) {
         var id = decoded.getPacketID();
-        this.emit('mqttPuback', decoded, messages.pullMessage(id));
+        processPuback(decoded, messages.pullMessage(id))
     }
 
     if (decoded.getType() == ENUM.MessageType.PUBREC) {
         var id = decoded.getPacketID();
-        this.emit('mqttPubrec', id);
-
+        connectionDone(id, 'mqttPubrec');
         try {
             var pubrel = Pubrel(id);
             var encPubrel = parser.encode(pubrel);
-            this.emit('mqttPubrel', encPubrel, id);
+            sendData(encPubrel, id, 'mqttPubrel'); 
         } catch (error) {
             console.log('Parser can`t encode provided params.');
         }
@@ -211,25 +229,25 @@ function onDataRecieved(data) {
 
     if (decoded.getType() == ENUM.MessageType.PUBCOMP) {
         var id = decoded.getPacketID();
-        this.emit('mqttPubcomp', decoded, messages.pullMessage(id));
+        processPubcomp(decoded, messages.pullMessage(id))
     }
 
     if (decoded.getType() == ENUM.MessageType.SUBACK) {
         var id = decoded.getPacketID();
         var codes = decoded.getReturnCodes();
         console.log("Suback received!.");
-        this.emit('mqttSuback', decoded, subscribtions.pullMessage(id));
+        processSuback( decoded, subscribtions.pullMessage(id))
     }
 
     if (decoded.getType() == ENUM.MessageType.UNSUBACK) {
         var id = decoded.getPacketID();
-        this.emit('mqttUnsuback', decoded, unsubscribtions.pullMessage(id));
+        processUnsuback(decoded, unsubscribtions.pullMessage(id));
     }
 
     if (decoded.getType() == ENUM.MessageType.PUBREL) {
         var id = decoded.getPacketID();
         var encPubrelPubcomp = parser.encode(Pubcomp(id));
-        this.emit('mqttPubcompOut', encPubrelPubcomp, id, messages.pullMessage(id));
+       processPubcompOut(encPubrelPubcomp, id, messages.pullMessage(id))
     }
 
     if (decoded.getType() == ENUM.MessageType.PUBLISH) {
@@ -249,16 +267,20 @@ function onDataRecieved(data) {
         }
         switch (ENUM.QoS[publishQos]) {
             case 0:
-                this.emit('mqttPublishIn', message);
+                if (!message) return;
+
+                message.direction = 'in';
+                saveMessage(message);
                 break;
             case 1:
                 var encPublishPuback = parser.encode(Puback(id));
-                this.emit('mqttPubackOut', encPublishPuback, message);
+                processPubackOut(encPublishPuback, message)
                 break;
             case 2:
                 var encPublishPubrec = parser.encode(Pubrec(id));
-                this.emit('mqttPubrecOut', encPublishPubrec, message);
                 messages.pushMessage(id, message)
+                if (encPublishPubrec)
+                    sendData(encPublishPubrec, message, 'mqttPubrecOut'); 
                 break;
             default:
                 break;
@@ -269,5 +291,167 @@ function onDataRecieved(data) {
 function ping() {
     var pingreq = Pingreq();
     var encPing = parser.encode(pingreq);
-    this.emit('mqttPing', encPing);
+    processPing(encPing, '01', 'mqttPing')
+}
+
+
+function sendData(payload, packetID, parentEvent) { 
+    bus.send('net.sendData' + unique, {
+        payload: payload,
+        username: username,
+        packetID: packetID,
+        parentEvent: parentEvent,
+        unique: unique
+    });    
+}
+
+function connectionDone(packetID, parentEvent) {
+    bus.send('net.done' + unique, {
+        packetID: packetID,
+        username: username,
+        parentEvent: parentEvent,
+        unique: unique
+    });
+}
+
+function saveMessage(msg) {
+    console.log(msg)
+    var message = {
+        type: 'message',
+        message: {
+            topic: msg.topic,
+            qos: msg.qos,
+            content: msg.content,
+            connectionId: username,
+            direction: msg.direction,
+            unique: unique,
+            clientID: thisClientID
+        },
+        id: guid(),
+        time: (new Date()).getTime()
+    }
+    db.loadDatabase();
+    db.insert(message);
+}
+
+function publishDisconnect() {
+    bus.send('mqtt.disconnect' + unique, {
+        msg: 'disconnect',
+        username: username,
+        unique: unique
+    });
+}
+
+function processConnack(data, unique, username) {
+    var that = this;
+        connectionDone(data.getPacketID(), 'mqttConnack');  
+
+        db.loadDatabase();
+        if (data.getReturnCode() == 'ACCEPTED') {
+            db.remove({ type: 'connack' }, { multi: true }, function(err, docs) {
+                db.insert({
+                    type: 'connack',
+                    connectionId: username,
+                    unique:unique,
+                    id: guid()
+                });
+            });
+            ping();
+        } else {
+            db.remove({ type: 'connack' }, { multi: true }, function(err, docs) {
+
+            });
+        }
+}
+function processConnect(payload, packetID, parentEvent) {
+    
+    sendData(payload, packetID, parentEvent); 
+}
+
+function processDisconnect(payload, packetID, parentEvent) {   
+        sendData(payload, packetID, parentEvent);
+        connectionDone(packetID, parentEvent);
+       
+        delete CLIENT[unique];
+        delete tokens[unique];
+}
+
+function processPing(payload, packetID, parentEvent) {
+    sendData(payload, packetID, parentEvent);
+    pingTimeout = setTimeout(function() {
+        publishDisconnect();
+    }, keepalive * 2 * 1000);
+}
+
+function processPublish(data, msg, packetID) {
+    sendData(data, packetID, 'mqttPublish');
+    connectionDone(packetID, 'mqttPublish');  
+       
+        if (msg.qos == 0) {
+            msg.direction = 'out';
+            saveMessage(msg);                   
+        }
+}
+
+function processPuback(data, msg) {
+    connectionDone(data.getPacketID(), 'mqttPuback'); 
+        tokens[unique].releaseToken(data.getPacketID());
+        msg.direction = 'out';
+        saveMessage(msg);
+}
+
+function processPubcomp(data, msg) {
+    connectionDone(data.getPacketID(), 'mqttPubcomp');                
+    tokens[unique].releaseToken(data.getPacketID());
+    msg.direction = 'out';
+    saveMessage(msg);  
+}
+
+function  processSuback(data, msg) {
+    connectionDone(data.getPacketID(), 'mqttSuback'); 
+  
+    var subscribtions = [];
+    db.loadDatabase();
+    for (var i = 0; i < msg.topics.length; i++) {
+        var subscribeData = {
+            type: 'subscribtion',
+            subscribtion: {
+                topic: msg.topics[i].topic,
+                qos: msg.topics[i].qos,
+                connectionId: msg.username,
+                clientID: thisClientID
+            },
+        }
+        subscribtions.push(subscribeData);
+        db.remove({ 'type': 'subscribtion', 'subscribtion.topic': msg.topics[i].topic }, { multi: true });
+    }
+    db.insert(subscribtions);
+}
+
+function processUnsuback(data, msg) {
+    connectionDone(data.getPacketID(), 'mqttUnsuback');
+       
+    db.loadDatabase();
+    tokens[unique].releaseToken(data.getPacketID());
+    for (var i = 0; i < msg.length; i++) {
+        db.remove({ 'type': 'subscribtion', 'subscribtion.topic': msg[i] }, { multi: true });
+    }
+}
+
+function processPubackOut(data, msg) {
+    if (!data) return;
+
+    sendData(data, msg.packetID, 'mqttPubackOut'); 
+
+    msg.direction = 'in';
+    saveMessage(msg);  
+}
+
+function processPubcompOut(data, id, msg) {
+    if (!data) return;
+        sendData(data, id, 'mqttPubcompOut'); 
+        if(msg) {
+            msg.direction = 'in';
+            saveMessage(msg); 
+        }                    
 }

@@ -118,7 +118,6 @@ function sendData(msg) {
             callback: function () {
                 try {
                     if (!connections[msg.unique]) return;
-
                     connections[msg.unique].write(Buffer.from(msg.payload));
                 } catch (e) {
                     console.log('Unable to establish connection to the server. Error: ', e);

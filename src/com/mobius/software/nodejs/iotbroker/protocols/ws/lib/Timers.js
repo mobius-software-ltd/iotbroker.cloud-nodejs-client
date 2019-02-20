@@ -25,12 +25,10 @@ var Timers = function Timers() {
         if (typeof timers[index] == 'undefined') return;
         timers[index].stopTimer();
         delete timers[index];
-        console.log('timer stoped, index:', index);
     };
 
     this.setTimer = function(i, timer) {
         timers[i] = timer;
-        console.log('timer set, index:', i);
     };
 };
 

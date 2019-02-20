@@ -31,7 +31,7 @@ var TOKENS = require('./lib/Tokens');
 var TIMERS = require('./lib/Timers');
 var Timer = require('./lib/Timer');
 var bus = require('servicebus').bus({
-    queuesFile: `.queues.ws-wss.${process.pid}`
+    queuesFile: `.queues.ws-cl.${process.pid}`
 });
 var ENUM = require('./lib/enum');
 
@@ -69,190 +69,13 @@ if (cluster.isMaster) {
 
             unique = msg.params.connection.unique;
             if (unique) {
-                bus.listen('ws.disconnect' + unique, function (msg) {
-                    if (typeof CLIENT[msg.unique] == 'undefined') return;
-                    CLIENT[msg.unique].id = msg.username;
-                    var packetID = tokens[msg.unique].getToken();
-                    db.loadDatabase();
-                    db.remove({ 'type': 'connection', 'connection.username': msg.username }, { multi: true });
-                    CLIENT[msg.unique].Disconnect(packetID);
-                });
-
-                bus.listen('ws.publish' + unique, function (msg) {
-                    if (typeof CLIENT[msg.unique] == 'undefined') return;
-                    if (msg.params.qos != 0)
-                        msg.params.token = tokens[msg.unique].getToken();
-
-                    CLIENT[msg.unique].publish = msg;
-                    CLIENT[msg.unique].id = msg.username;
-                    CLIENT[msg.unique].Publish(msg);
-                });
-
-                bus.listen('ws.subscribe' + unique, function (msg) {
-                    if (typeof CLIENT[msg.unique] == 'undefined') return;
-                    msg.params.token = tokens[msg.unique].getToken();
-                    CLIENT[msg.unique].Subscribe(msg.params);
-                });
-
-                bus.listen('ws.unsubscribe' + unique, function (msg) {
-                    if (typeof CLIENT[msg.unique] == 'undefined') return;
-                    var token = tokens[msg.unique].getToken();
-                    CLIENT[msg.unique].Unsubscribe(msg.params, token);
-                });
-
-                bus.listen('ws.socketOpened' + unique, function (msg) {
-                    CLIENT[msg.params.connection.unique] = new ws();
-                    CLIENT[msg.params.connection.unique].id = msg.params.connection.username;
-                    username = msg.params.connection.username;
-                    thisClientID = msg.params.connection.clientID;
-                    CLIENT[msg.params.connection.unique].unique = msg.params.connection.unique;
-                    tokens[msg.params.connection.unique] = new TOKENS();
-                    CLIENT[msg.params.connection.unique].on('wsConnect', function (data) {
-                        sendData(data, 1, 'wsConnect');
-                    });
-
-                    CLIENT[msg.params.connection.unique].on('wsDisconnect', function (data, id) {
-                        sendData(data, id, 'wsDisconnect');
-                        connectionDone(id, 'wsDisconnect');
-
-                        delete CLIENT[this.unique];
-                        delete tokens[this.unique];
-                        delete timers[this.unique];
-                    });
-
-                    CLIENT[msg.params.connection.unique].on('wsConnack', function (data) {
-                        var that = this;
-                        connectionDone(1, 'wsConnack');
-                        db.loadDatabase();
-                        if (data.payload.data.returnCode == ENUM.ConnackCode.ACCEPTED) {
-                            db.remove({ type: 'connack' }, { multi: true }, function (err, docs) {
-                                db.insert({
-                                    type: 'connack',
-                                    connectionId: that.id,
-                                    unique: that.unique,
-                                    id: guid()
-                                });
-                            });
-                            CLIENT[this.unique].Ping();
-                        } else {
-                            db.remove({ type: 'connack' }, { multi: true }, function (err, docs) { });
-                        }
-                    });
-
-                    CLIENT[msg.params.connection.unique].on('wsPing', function (data) {
-                        sendData(data, 0, 'wsPing');
-                        pingTimeout = setTimeout(function () {
-                            publishDisconnect();
-                        }, msg.params.connection.keepalive * 10 * 1000);
-                    });
-
-                    CLIENT[msg.params.connection.unique].on('wsPubrec', function (packetID) {
-                        connectionDone(packetID, 'wsPubrec');
-                    });
-
-                    CLIENT[msg.params.connection.unique].on('wsPublish', function (data, msg, packetID, parent) {
-                        sendData(data, packetID, parent);
-                        connectionDone(packetID, 'wsPublish');
-                        if (msg.qos == 0) {
-                            var msgObj = CLIENT[this.unique].publish.params;
-                            msgObj.direction = 'out',
-                                saveMessage(msgObj);
-                        }
-                    });
-
-                    CLIENT[msg.params.connection.unique].on('wsPubrel', function (data, packetID) {
-                        sendData(data, packetID, 'wsPubrel');
-                    });
-
-                    CLIENT[msg.params.connection.unique].on('wsPuback', function (data, id, msg) {
-                        connectionDone(id, 'wsPuback');
-                        tokens[this.unique].releaseToken(id);
-                        var msgObj = CLIENT[this.unique].publish.params;
-                        msgObj.direction = 'out',
-                            saveMessage(msgObj);
-                    });
-
-                    CLIENT[msg.params.connection.unique].on('wsPubcomp', function (packetID, msg) {
-                        connectionDone(packetID, 'wsPubcomp');
-                        tokens[this.unique].releaseToken(packetID);
-                        var msgObj = CLIENT[this.unique].publish.params;
-                        msgObj.direction = 'out',
-                            saveMessage(msgObj);
-                    });
-
-                    CLIENT[msg.params.connection.unique].on('wsSubscribe', function (data, packetID) {
-                        sendData(data, packetID, 'wsSubscribe');
-                    });
-
-                    CLIENT[msg.params.connection.unique].on('wsSuback', function (data, msg) {
-                        connectionDone(data.payload.data.packetID, 'wsSuback');
-                        tokens[this.unique].releaseToken(data.payload.data.packetID);
-                        var subscribtions = [];
-
-                        db.loadDatabase();
-                        // if(data.payload.data.returnCode)
-                        if (msg.topics)
-                            for (var i = 0; i < msg.topics.length; i++) {
-                                var subscribeData = {
-                                    type: 'wssubscribtion',
-                                    subscribtion: {
-                                        topic: msg.topics[i].topic ? msg.topics[i].topic : null,
-                                        qos: msg.topics[i].qos ? msg.topics[i].qos : null,
-                                        connectionId: msg.username,
-                                    },
-                                }
-                                subscribtions.push(subscribeData);
-                                db.remove({ 'type': 'subscribtion', 'subscribtion.topic': msg.topics[i].topic }, { multi: true });
-                            }
-                        db.insert(subscribtions);
-                    });
-
-                    CLIENT[msg.params.connection.unique].on('wsUnsubscribe', function (data, packetID) {
-                        sendData(data, packetID, 'wsUnsubscribe');
-                    });
-
-                    CLIENT[msg.params.connection.unique].on('wsUnsuback', function (packetID, msg) {
-                        connectionDone(packetID, 'wsUnsuback');
-                        db.loadDatabase();
-                        tokens[this.unique].releaseToken(packetID);
-                        db.remove({ 'type': 'wssubscribtion', 'subscribtion.topic': msg }, { multi: true });
-                    });
-
-                    CLIENT[msg.params.connection.unique].on('wsPublishIn', function (data) {
-                        if (!data) return;
-                        saveMessage(data);
-                    });
-
-                    CLIENT[msg.params.connection.unique].on('wsPubackOut', function (data, msg) {
-                        if (!data) return;
-                        sendData(data, msg.packetID, 'wsPubackOut');
-                        saveMessage(msg);
-                    });
-
-                    CLIENT[msg.params.connection.unique].on('wsPubrecOut', function (data, msg) {
-                        if (!data) return;
-                        sendData(data, msg.packetID, 'wsPubrecOut');
-                    });
-
-                    CLIENT[msg.params.connection.unique].on('wsPubcompOut', function (data, id, msg) {
-                        if (!data) return;
-                        sendData(data, id, 'wsPubcompOut');
-                        saveMessage(msg);
-                    });
-
-                    CLIENT[msg.params.connection.unique].on('wsPingResp', function (data) {
-                        clearTimeout(pingTimeout);
-                        pingTimeout = setTimeout(function () {
-                            publishDisconnect();
-                        }, msg.params.connection.keepalive * 2 * 1000);
-                    });
-
+                bus.listen('ws.disconnect' + unique, function (msg) { processDisconnect(msg) });
+                bus.listen('ws.publish' + unique, function (msg) { processPublish(msg) });
+                bus.listen('ws.subscribe' + unique, function (msg) { processSubscribe(msg) });
+                bus.listen('ws.unsubscribe' + unique, function (msg) { processUnsubscribe(msg) });
+                bus.listen('ws.dataReceived' + unique, function (msg) { processDataReceived(msg) });
+                bus.listen('ws.socketOpened' + unique, function (msg) { processSocketOpened(msg)  
                     CLIENT[msg.params.connection.unique].Connect(msg.params.connection);
-                });
-
-                bus.listen('ws.dataReceived' + unique, function (msg) {
-                    if (typeof CLIENT[msg.unique] == 'undefined') return;
-                    CLIENT[msg.unique].onDataRecieved(msg);
                 });
             }
         });
@@ -276,57 +99,53 @@ function getData(req, res) {
     });
 }
 
-function sendData(payload, packetID, parentEvent) {
-    bus.send('wss.sendData' + unique, {
-        payload: payload,
-        username: username,
-        packetID: packetID,
-        parentEvent: parentEvent,
-        unique: unique
-    });
-}
-
-function connectionDone(packetID, parentEvent) {
-    bus.send('wss.done' + unique, {
-        packetID: packetID,
-        username: username,
-        parentEvent: parentEvent,
-        unique: unique
-    });
-}
-
-function saveMessage(msg) {
-    var message = {
-        type: 'wsmessage',
-        message: {
-            topic: msg.topic,
-            qos: msg.qos,
-            content: msg.content,
-            connectionId: username,
-            direction: msg.direction || 'in',
-            unique: unique,
-            clientID: thisClientID
-        },
-        id: guid(),
-        time: (new Date()).getTime()
-    }
-    db.loadDatabase();
-    db.insert(message);
-}
-
-function publishDisconnect() {
-    bus.send('ws.disconnect' + unique, {
-        msg: 'disconnect',
-        username: username,
-        unique: unique,
-        parentEvent: 'wsDisconnect'
-    });
-}
-
 var methods = {
     send: send,
     publish: publish,
     getData: getData
 }
+
+function processDisconnect(msg) {
+    if (typeof CLIENT[msg.unique] == 'undefined') return;
+    CLIENT[msg.unique].id = msg.username;
+    db.loadDatabase();
+    db.remove({ 'type': 'connection', 'connection.username': msg.username }, { multi: true });
+    CLIENT[msg.unique].Disconnect(msg.unique);
+}
+
+function processPublish(msg) {
+    if (typeof CLIENT[msg.unique] == 'undefined') return;  
+
+    CLIENT[msg.unique].publish = msg;
+    CLIENT[msg.unique].id = msg.username;
+    CLIENT[msg.unique].Publish(msg);
+}
+
+function processSubscribe(msg) {
+    if (typeof CLIENT[msg.unique] == 'undefined') return;
+
+    CLIENT[msg.unique].Subscribe(msg.params);
+}
+
+function processUnsubscribe(msg) {
+    if (typeof CLIENT[msg.unique] == 'undefined') return;
+
+    CLIENT[msg.unique].Unsubscribe(msg.params);
+}
+
+function processSocketOpened(msg) {
+    CLIENT[msg.params.connection.unique] = new ws();
+    CLIENT[msg.params.connection.unique].id = msg.params.connection.username;
+    username = msg.params.connection.username;
+    thisClientID = msg.params.connection.clientID;
+    CLIENT[msg.params.connection.unique].unique = msg.params.connection.unique;
+    tokens[msg.params.connection.unique] = new TOKENS();
+}
+
+function  processDataReceived(msg) {
+    if (typeof CLIENT[msg.unique] == 'undefined') return;
+    CLIENT[msg.unique].onDataRecieved(msg);
+}
+
 
 module.exports = methods;

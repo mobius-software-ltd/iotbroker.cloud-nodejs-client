@@ -44,7 +44,8 @@
                 username: sessionData.username,
                 clientID: sessionData.clientID,
                 type: sessionData.type,
-                topic: [params.item]    
+                topic: [params.item],
+                unique: sessionData.unique  
             }).then(function(data) {
                 setTimeout(function() {
                     getTopics();
@@ -61,7 +62,8 @@
                 topics: [vm.newItem],
                 username: sessionData.username,
                 clientID: sessionData.clientID,
-                type: sessionData.type       
+                type: sessionData.type,
+                unique: sessionData.unique         
             }).then(function(data) {
                 setTimeout(function() {
                     getTopics();

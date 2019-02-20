@@ -27,18 +27,7 @@
         vm.connect = connect;
 
         init();
-        vm.login = {
-            certificate: null,
-            clientID: "123",
-            host: "broker.iotbroker.cloud",
-            isClean: false,
-            keepalive: "10",
-            password: "galina1988",
-            port: "18080",
-            privateKey: null,           
-            username: "yulian.oifa@mobius-software.com"
-           }
-
+       
         function connect() {
             // vm.login(vm.login);
            
@@ -50,6 +39,7 @@
                     // }
                 }
             }
+            vm.login.unique = vm.login.clientID + Math.random().toString(18).substr(2, 16);
             vm.login.type = vm.protocolType;    
             dataFactory.connect(vm.login);
         }

@@ -52,22 +52,24 @@ function AMQPError(condition, description, info) {
             return list;
         },
         fromArgumentsList(list) {
+            var unwrap = new AMQPUnwrapper();
+            var errorC = new ErrorCode();
             if (list.getList().length > 0) {
                 var element = list.getList()[0];
                 if (element != null)
-                    condition = ErrorCode.getCondition(AMQPUnwrapper.unwrapSymbol(element).getValue());
+                    condition = errorC.getCondition(unwrap.unwrapSymbol(element).getValue());
             }
 
             if (list.getList().length > 1) {
                 var element = list.getList()[1];
                 if (element != null)
-                    description = AMQPUnwrapper.unwrapString(element);
+                    description = unwrap.unwrapString(element);
             }
 
             if (list.getList().length > 2) {
                 var element = list.getList()[2];
                 if (element != null)
-                    info = AMQPUnwrapper.unwrapMap(element);
+                    info = unwrap.unwrapMap(element);
             }
         },
         hashCode: function () {

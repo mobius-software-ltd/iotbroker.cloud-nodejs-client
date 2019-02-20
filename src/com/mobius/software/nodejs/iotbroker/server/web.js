@@ -32,8 +32,6 @@ var coapClient = require('../protocols/coap/coapClient');
 var wsClient = require('../protocols/ws/wsClient');
 var amqpClient = require('../protocols/amqp/amqpClient')
 var guid = require('../protocols/mqtt/lib/guid');
-var currClient;
-var unique;
 var cluster = require('cluster');
 var numCPUs = require('os').cpus().length;
 
@@ -68,11 +66,10 @@ if (cluster.isMaster) {
         console.log('app is running on port 8888');
     });
 
-    app.post('/connect', function onConnect(req, res) {           
+    app.post('/connect', function onConnect(req, res) {    
         var Datastore = require('nedb');
         var dbUsers = new Datastore({ filename: 'users' });
-        unique = req.body.clientID + Math.random().toString(18).substr(2, 16);
-        currClient = req.body.type;
+        var currClient = req.body.type;
         currClient.name = currClient.name.toLowerCase();
         //VALIDATION
         // if (!req.body.host || !/^(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/.test(req.body.host)) {
@@ -119,7 +116,7 @@ if (cluster.isMaster) {
                     clientID: req.body.clientID,
                     isClean: JSON.parse(req.body.isClean),
                     keepalive: parseInt(req.body.keepalive),
-                    unique: unique,
+                    unique: req.body.unique,
                     secure: req.body.secure,
                     certificate: req.body.certificate,
                     privateKey: req.body.privateKey
@@ -212,7 +209,8 @@ if (cluster.isMaster) {
 
 
     app.post('/disconnect', function onDisconnect(req, res) {
-        currClient = req.body.type;
+        var currClient = req.body.type;
+        var unique = req.body.unique
         currClient.name = currClient.name.toLowerCase();
         // if (!req.body.username || !/^(([^<>()\[\]\\.,;:\s@"]+(\.[^<>()\[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/.test(req.body.username)) {
         if (!req.body.username && (currClient.id == 1 || currClient.id == 5)) {
@@ -266,8 +264,10 @@ if (cluster.isMaster) {
         }
     });
 
-    app.post('/publish', function onPublish(req, res) {
+    app.post('/publish', function onPublish(req, res) { 
         var currClient = req.body.type;
+        var unique = req.body.unique
+        currClient.name = currClient.name.toLowerCase();
         // if (!req.body.username || !/^(([^<>()\[\]\\.,;:\s@"]+(\.[^<>()\[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/.test(req.body.username)) {
         if (!req.body.username && (currClient.id == 1 || currClient.id == 5)) {
             res.status(400).send('Invalid request! Parameter "username" mismatch.');
@@ -358,7 +358,7 @@ if (cluster.isMaster) {
 
     app.post('/subscribe', function onSubscribe(req, res) {
         var currentProtocol = req.body.type.id;
-        req.body.unique = unique;
+        var unique = req.body.unique
         //if (!req.body.username || !/^(([^<>()\[\]\\.,;:\s@"]+(\.[^<>()\[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/.test(req.body.username)) {
 
         if (currentProtocol == 1) {
@@ -438,6 +438,7 @@ if (cluster.isMaster) {
     });
 
     app.post('/unsubscribe', function onUnsubscribe(req, res) {
+        var unique = req.body.unique
         var currentProtocol = req.body.type.id;
         req.body.unique = unique;
         // if (!req.body.username || !/^(([^<>()\[\]\\.,;:\s@"]+(\.[^<>()\[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/.test(req.body.username)) {
@@ -554,7 +555,7 @@ if (cluster.isMaster) {
                 type: 'coapmessage',
                 'message.direction': { $in: req.body.directions },
                 //'message.topic': { $in: req.body.topics },                
-                'message.unique': unique
+                'message.unique': req.body.unique
             }, res);
         }
         if (currentProtocol == 4) {

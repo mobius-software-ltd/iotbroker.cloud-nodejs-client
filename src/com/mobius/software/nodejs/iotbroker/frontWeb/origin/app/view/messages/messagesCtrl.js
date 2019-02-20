@@ -22,7 +22,8 @@
                 topics: topics,
                 username: sessionData.username,
                 clientID: sessionData.clientID,
-                type: sessionData.type  
+                type: sessionData.type,
+                unique:  sessionData.unique
             }).then(function(data) {
                 // console.log(data);
                 vm.messages = data.data;
@@ -40,7 +41,8 @@
             dataFactory.getTopics({
                 username: sessionData.username,
                 clientID: sessionData.clientID,
-                type: sessionData.type  
+                type: sessionData.type,
+                unique:  sessionData.unique
             }).then(function(data) {
                 if (data.data.length > 0) {
                     sessionFactory.pushTopic(data.data);

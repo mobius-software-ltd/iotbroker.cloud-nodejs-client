@@ -32,7 +32,7 @@ var TOKENS = require('./lib/Tokens');
 var TIMERS = require('./lib/Timers');
 var Timer = require('./lib/Timer');
 var bus = require('servicebus').bus({
-    queuesFile: `.queues.amqp.${process.pid}`
+    queuesFile: `.queues.amqp-client.${process.pid}`
 });
 
 var amqp = require('./amqp.js')
@@ -72,294 +72,17 @@ if (cluster.isMaster) {
 
             unique = msg.params.connection.unique;
             if(unique) {
-                bus.listen('amqp.disconnect' + unique, function (msg) {
+                bus.listen('amqp.disconnect' + unique, function (msg) { processDisconnect(msg) });
+                bus.listen('amqp.subscribe' + unique, function (msg) { processSubscribe(msg) });
+                bus.listen('amqp.unsubscribe' + unique, function (msg) { processUnsubscribe(msg) });
+                bus.listen('amqp.publish' + unique, function (msg) { processPublish(msg) });
+                bus.listen('amqp.socketOpened'  + unique, function (msg) { processSocketopened(msg)     
 
-                    if (typeof CLIENT[msg.unique] == 'undefined') return;
-                    CLIENT[msg.unique].id = msg.username;
-                    db.loadDatabase();
-                    db.remove({ 'type': 'amqp.connection', 'connection.unique': msg.unique }, { multi: true });
-                    CLIENT[msg.unique].Disconnect();
-                });
-
-                bus.listen('amqp.subscribe' + unique, function (msg) {
-                    if (typeof CLIENT[msg.unique] == 'undefined') return;
-                   
-                    for (var i = 0; i < msg.params.topics.length; i++) {
-                        msg.params.topics[i].token = tokens[msg.unique].getToken();
-                        msg.params.topics[i].qos = ENUM.QoS.AT_LEAST_ONCE;
-                    }
-                    CLIENT[msg.unique].Subscribe(msg.params.topics);
-                });
-
-                bus.listen('amqp.unsubscribe' + unique, function (msg) {
-                    if (typeof CLIENT[msg.unique] == 'undefined') return;
-        
-                    db.loadDatabase();
-                    var result;
-                    db.find({
-                        type: 'amqp.subscribtion',
-                        'subscribtion.topic': msg.params[0].topic
-                    }, function (err, docs) {
-                        if (docs) {
-                            result = docs
-                        }
-                    });
-                    if (result) {
-                        for (var i = 0; i < msg.params.length; i++) {
-                            msg.params[i].token = result[0].subscribtion.token
-                        }
-                    }
-                    CLIENT[msg.unique].Unsubscribe(msg);
-                });
-
-                bus.listen('amqp.publish' + unique, function (msg) {
-                    if (typeof CLIENT[msg.unique] == 'undefined') return;
-                    msg.params.token = tokens[msg.unique].getToken();
-                    msg.params.deliveryId = delivery[msg.unique].getToken();
-                    msg.params.qos = ENUM.QoS.AT_LEAST_ONCE;
-        
-                    CLIENT[msg.unique].id = msg.username;
-                    CLIENT[msg.unique].Publish(msg.params);
-                });
-
-                bus.listen('amqp.socketOpened'  + unique, function (msg) {
-                    CLIENT[msg.params.connection.unique] = new amqp();
-                    CLIENT[msg.params.connection.unique].id = msg.params.connection.username;
-                    CLIENT[msg.params.connection.unique].password = msg.params.connection.password;
-                    CLIENT[msg.params.connection.unique].keepalive = msg.params.connection.keepalive;
-                    CLIENT[msg.params.connection.unique].clientID = msg.params.connection.clientID;
-                    username = msg.params.connection.clientID;
-                    unique = msg.params.connection.unique;
-                    CLIENT[msg.params.connection.unique].unique = msg.params.connection.unique;
-                    CLIENT[msg.params.connection.unique].isClean = msg.params.connection.isClean;
-                    tokens[msg.params.connection.unique] = new TOKENS();
-                    delivery[msg.params.connection.unique] = new TOKENS();
-        
-        
-                    connectTimeout = setTimeout(function () {
-                        connectionDone(null, 'amqp.disconnect', null)
-                        delete CLIENT[msg.params.connection.unique]
-                    }, msg.params.connection.keepalive * 1000);
-                    // if socket open - start send packet (protoheader)
-                    CLIENT[msg.params.connection.unique].on('amqpConnect', function (data) { 
-                        sendData(data, 0, 'amqpConnect');
-                    });
-        
-                    CLIENT[msg.params.connection.unique].on('amqp.saslinit', function (data) {
-                        if (!data) return;
-                        sendData(data, 1, 'amqp.saslinit');
-                     });
-        
-                    CLIENT[msg.params.connection.unique].on('amqp.protoheader', function (data) {
-                         if (!data) return;
-                        sendData(data, 1, 'amqp.protoheader');
-                     });
-        
-                    CLIENT[msg.params.connection.unique].on('amqp.open', function (data) {
-                        if (!data) return;
-                        sendData(data, 1, 'amqp.open');               
-                    });
-        
-                    CLIENT[msg.params.connection.unique].on('amqp.begin', function (data) {
-                        if (!data) return;
-                        sendData(data, 1, 'amqp.begin');  
-                        
-                        db.loadDatabase();
-                        if (CLIENT[msg.params.connection.unique].isClean) {
-                            db.remove({ 'type': 'amqp.subscribtion', 'subscribtion.connectionId': msg.params.connection.username, 'subscribtion.clientID': msg.params.connection.clientID }, { multi: true });
-                        }
-        
-                        // db.insert(msg.params);
-        
-                    });
-        
-                    CLIENT[msg.params.connection.unique].on('amqp.beginIN', function (client) {
-                        if (!CLIENT[client.unique]) return;
-                        var id = this.id;
-                        clearInterval(connectTimeout)
-                        db.loadDatabase();
-                        db.remove({ type: 'amqp.connack' }, { multi: true }, function (err, docs) {
-                            db.insert({
-                                type: 'amqp.connack',
-                                connectionId: id,
-                                id: guid()
-                            });
-                        });
-                        msg.params.type = 'amqp.connection';
-                        db.insert(msg.params);
-        
-                        var topics = []
-                        var unique = this.unique
-                        db.find({
-                            type: 'amqp.subscribtion',
-                            'subscribtion.connectionId': client.username,
-                            'subscribtion.clientID': client.clientID,
-                        }, function (err, docs) {
-                            if (docs) {
-                                for (var i = 0; i < docs.length; i++) {
-                                    if (docs[i]) {
-                                        docs[i].subscribtion.token = tokens[unique].getToken()
-                                        topics.push(docs[i].subscribtion)
-                                    }
-                                }
-        
-                            }
-        
-                            if (topics.length)
-                                CLIENT[unique].Subscribe(topics)
-                        });
-        
-                        CLIENT[this.unique].Ping();
-                    });
-        
-                    CLIENT[msg.params.connection.unique].on('amqp.pingreq', function (data) {
-                        if (!data) return;
-                        sendData(data, -1, 'amqp.pingreq'); 
-                    });
-        
-                    CLIENT[msg.params.connection.unique].on('amqp.end', function (data) {
-                        if (!data) return;
-                        sendData(data, 1, 'amqp.end'); 
-                    });
-        
-                    CLIENT[msg.params.connection.unique].on('amqp.close', function (data) {
-                        if (!data) return;
-                        sendData(data, 1, 'amqp.end');                
-                    });
-        
-                    CLIENT[msg.params.connection.unique].on('amqp.closeIN', function (client) {
-                        if (!CLIENT[client.unique]) return;
-                        connectionDone(null, 'amqp.disconnect', null);                
-                    });
-        
-                    CLIENT[msg.params.connection.unique].on('amqp.subscribe', function (data) {
-                        sendData(data, 0, 'amqp.subscribe'); 
-                        });
-        
-                    CLIENT[msg.params.connection.unique].on('amqp.suback', function (data, msg) {
-                        if (!data) return;
-                        connectionDone(0, 'amqp.suback', data);
-                        var subscribtions = [];
-                        var clientID = this.clientID
-                        var username = this.id
-                        db.loadDatabase();
-                        // for (var i = 0; i < msg.length; i++) {
-        
-                        var subscribeData = {
-                            type: 'amqp.subscribtion',
-                            subscribtion: {
-                                topic: msg.topic,
-                                qos: msg.qos,
-                                connectionId: username,
-                                clientID: clientID,
-                                token: msg.token
-                            },
-                        }
-                        subscribtions.push(subscribeData);
-                        db.remove({ 'type': 'amqp.subscribtion', 'subscribtion.topic': msg.topic }, { multi: true });
-                        // }
-                        db.insert(subscribtions);
-        
-                    });
-        
-                    CLIENT[msg.params.connection.unique].on('amqp.unsubscribe', function (data) {
-                        sendData(data, 0, 'amqp.unsubscribe'); 
-                      });
-        
-                    CLIENT[msg.params.connection.unique].on('amqp.unsuback', function (token) {
-                        if (!token) return;
-                        connectionDone(token, 'amqp.unsuback', null);
-                        db.loadDatabase();
-                        db.remove({ 'type': 'amqp.subscribtion', 'subscribtion.token': token }, { multi: true });
-                    });
-        
-                    CLIENT[msg.params.connection.unique].on('amqp.publish', function (data, id) {
-                        if (!data) return;
-                        sendData(data, id, 'amqp.publish');
-                        });
-        
-                    CLIENT[msg.params.connection.unique].on('amqp.dispositionIN', function (data, token) {
-                        if (!data) return;
-                        connectionDone(token, 'amqp.dispositionIN', null); 
-                        db.loadDatabase();
-                        var outMessage = {
-                            type: 'amqp.message',
-                            message: {
-                                topic: data.topic,
-                                qos: data.qos,
-                                content: data.content,
-                                connectionId: this.id,
-                                direction: 'out',
-                                unique: this.unique,
-                                clientID: this.clientID
-                            },
-                            id: guid(),
-                            time: (new Date()).getTime()
-                        }
-                        db.insert(outMessage);
-                    });
-        
-                    CLIENT[msg.params.connection.unique].on('amqp.dispositionOUT', function (data, transfer, qos, topic) {
-        
-                        var content = transfer.getData().getData().toString();
-                        if (!data) return;
-                        sendData(data, null, 'amqp.dispositionOUT');
-        
-                        var token = transfer.getHandle();
-                        var topicName = topic;
-                        var id = this.id;
-                        var unique = this.unique;
-                        var clientID = this.clientID;
-                        db.loadDatabase();
-                        db.find({
-                            type: 'amqp.subscribtion', 'subscribtion.topic': topic
-                        }, function (err, docs) {
-                            if (docs.length) {
-                                topicName = docs[0].subscribtion.topic
-                            }
-        
-                        });
-                        db.find({
-                            type: 'amqp.subscribtion', 'subscribtion.token': token
-                        }, function (err, docs) {
-                            if (docs.length) {
-                                topicName = docs[0].subscribtion.topic
-                            }
-                            var inMessage = {
-                                type: 'amqp.message',
-                                message: {
-                                    topic: topicName,
-                                    qos: qos,
-                                    content: content,
-                                    connectionId: id,
-                                    direction: 'in',
-                                    unique: unique,
-                                    clientID: clientID
-                                },
-                                id: guid(),
-                                time: (new Date()).getTime()
-                            }
-                            db.insert(inMessage);
-                        });
-        
-                    });
-        
-                    CLIENT[msg.params.connection.unique].Connect(msg.params.connection);
-                    // Connect() - create packet, encode it, send 
+                  CLIENT[msg.params.connection.unique].Connect(msg.params.connection, tokens[msg.params.connection.unique], connectTimeout);
+                    
                 });
         
-                bus.listen('amqp.dataReceived' + unique, function (msg) {
-                    if (typeof CLIENT[msg.unique] == 'undefined') return;
-                    var client = {
-                        username: CLIENT[msg.unique].id,
-                        password: CLIENT[msg.unique].password,
-                        keepalive: CLIENT[msg.unique].keepalive,
-                        clientID: CLIENT[msg.unique].clientID,
-                        isClean: CLIENT[msg.unique].isClean,
-                        unique: CLIENT[msg.unique].unique
-                    }
-                    CLIENT[msg.unique].onDataRecieved(Buffer.from(msg.payload), client);
-                });
+                bus.listen('amqp.dataReceived' + unique, function (msg) { processOnDataReceived(msg)  });
             }
         });
 
@@ -384,16 +107,6 @@ function getData(req, res) {
     });
 }
 
-function sendData(payload, packetID, parentEvent) {       
-    bus.send('amqp.sendData' + unique, {
-        payload: payload,
-        username: username,
-        packetID: packetID,
-        parentEvent: parentEvent,
-        unique: unique
-    });    
-}
-
 function connectionDone(packetID, parentEvent, payload) {
     bus.send('amqp.done' + unique, {       
         packetID: packetID,
@@ -408,6 +121,88 @@ var methods = {
     send: send,
     publish: publish,
     getData: getData
+}
+
+function processDisconnect(msg) {
+    if (typeof CLIENT[msg.unique] == 'undefined') return;
+    CLIENT[msg.unique].id = msg.username;
+    db.loadDatabase();
+    db.remove({ 'type': 'amqp.connection', 'connection.unique': msg.unique }, { multi: true });
+    CLIENT[msg.unique].Disconnect();
+}
+
+function processSubscribe(msg) {
+    if (typeof CLIENT[msg.unique] == 'undefined') return;
+                   
+    for (var i = 0; i < msg.params.topics.length; i++) {
+        msg.params.topics[i].token = tokens[msg.unique].getToken();
+        msg.params.topics[i].qos = ENUM.QoS.AT_LEAST_ONCE;
+    }
+    CLIENT[msg.unique].Subscribe(msg.params.topics);
+}
+
+function processUnsubscribe(msg) {
+    if (typeof CLIENT[msg.unique] == 'undefined') return;
+        
+    db.loadDatabase();
+    var result;
+    db.find({
+        type: 'amqp.subscribtion',
+        'subscribtion.topic': msg.params[0].topic
+    }, function (err, docs) {
+        if (docs) {
+            result = docs
+        }
+    });
+    if (result) {
+        for (var i = 0; i < msg.params.length; i++) {
+            msg.params[i].token = result[0].subscribtion.token
+        }
+    }
+    CLIENT[msg.unique].Unsubscribe(msg);
+}
+
+function processPublish(msg) {
+    if (typeof CLIENT[msg.unique] == 'undefined') return;
+    msg.params.token = tokens[msg.unique].getToken();
+    msg.params.deliveryId = delivery[msg.unique].getToken();
+    msg.params.qos = ENUM.QoS.AT_LEAST_ONCE;
+
+    CLIENT[msg.unique].id = msg.username;
+    CLIENT[msg.unique].Publish(msg.params);
+}
+
+function processSocketopened(msg) {
+    CLIENT[msg.params.connection.unique] = new amqp();
+    CLIENT[msg.params.connection.unique].id = msg.params.connection.username;
+    CLIENT[msg.params.connection.unique].password = msg.params.connection.password;
+    CLIENT[msg.params.connection.unique].keepalive = msg.params.connection.keepalive;
+    CLIENT[msg.params.connection.unique].clientID = msg.params.connection.clientID;
+    username = msg.params.connection.clientID;
+    unique = msg.params.connection.unique;
+    CLIENT[msg.params.connection.unique].unique = msg.params.connection.unique;
+    CLIENT[msg.params.connection.unique].isClean = msg.params.connection.isClean;
+    CLIENT[msg.params.connection.unique].params = msg.params;
+    tokens[msg.params.connection.unique] = new TOKENS();
+    delivery[msg.params.connection.unique] = new TOKENS();
+
+
+    connectTimeout = setTimeout(function () {
+        connectionDone(null, 'amqp.disconnect', null)
+    }, msg.params.connection.keepalive * 1000);
+}
+
+function processOnDataReceived(msg) {
+    if (typeof CLIENT[msg.unique] == 'undefined') return;
+    var client = {
+        username: CLIENT[msg.unique].id,
+        password: CLIENT[msg.unique].password,
+        keepalive: CLIENT[msg.unique].keepalive,
+        clientID: CLIENT[msg.unique].clientID,
+        isClean: CLIENT[msg.unique].isClean,
+        unique: CLIENT[msg.unique].unique
+    }
+    CLIENT[msg.unique].onDataRecieved(Buffer.from(msg.payload), client);
 }
 
 module.exports = methods;

@@ -55,6 +55,13 @@ var usedOutgoingHandles = {};
 var usedIncomingMappings = {};
 var usedIncomingHandles = {};
 
+
+var vm = this;
+var bus = require('servicebus').bus({
+    queuesFile: `.queues.amqp.${process.pid}`
+});
+var guid = require('./lib/guid');
+
 function AmqpClient() {
 	Events.EventEmitter.call(this);
 }
@@ -91,7 +98,11 @@ var messages = Store();
 var subscribtions = Store();
 var unsubscribtions = Store();
 
-function connect(params) {
+function connect(params, tokens, connectTimeout) {	
+	vm.unique = params.unique;
+	vm.username = params.username;
+	vm.connectTimeout = connectTimeout
+	vm.tokens = tokens; 
 	try {
 		var header = new AMQPProtoHeader();
 		header.setProtocolId(3);
@@ -107,7 +118,7 @@ function connect(params) {
 		console.log('Parser can`t encode provided params.', e);
 	}
 
-	this.emit('amqpConnect', encHeader);
+	sendData(encHeader, 0, 'amqpConnect');
 }
 
 function disconnect() {
@@ -118,7 +129,8 @@ function disconnect() {
 	} catch (e) {
 		console.log(e)
 	}
-	this.emit('amqp.end', result);
+	if(result)
+	sendData(result, 1, 'amqp.end'); 
 }
 
 function subscribe(topics) {
@@ -137,10 +149,10 @@ function subscribe(topics) {
 			target.setTimeout(0);
 			target.setDynamic(false);
 			attach.setTarget(target);
-			//client.send(attach);
 			var result = parser.encode(attach)
 			subscribtions.pushMessage(currentHandler, topics[i])
-			this.emit('amqp.subscribe', result);
+
+			sendData(result, 0, 'amqp.subscribe');
 		}
 	} catch (e) {
 		console.log(e)
@@ -157,7 +169,7 @@ function unsubscribe(data) {
 			detach.setHandle(incomingHandle);
 			var result = parser.encode(detach)
 			unsubscribtions.pushMessage(incomingHandle, data.params[i]);
-			this.emit('amqp.unsubscribe', result)
+			sendData(result, 0, 'amqp.unsubscribe'); 
 		}
 	} catch (e) {
 		console.log(e)
@@ -167,7 +179,6 @@ function unsubscribe(data) {
 
 function publish(params) {	
 	messages.pushMessage(params.deliveryId, params);
-	var currentHandler = params.token
 	var deliveryId = params.deliveryId
 	var transfer = new AMQPTransfer();
 	transfer.setChannel(channel);
@@ -195,16 +206,21 @@ function publish(params) {
 	if (usedOutgoingMappings[params.topic]) {
 		var handle = usedOutgoingMappings[params.topic]
 		transfer.setHandle(handle);
-
+		if(transfer.getSettled()) {
+			connectionDone(transfer.getDeliveryId())
+		}
 		try {
 			var encTransfer = parser.encode(transfer)
 		} catch (e) {
 			console.log(e)
 		}
-		this.emit('amqp.publish', encTransfer, deliveryId);
+		if(encTransfer) {
+			sendData(encTransfer, deliveryId, 'amqp.publish');
+		}
+		
 	} else {
 		try {
-			// var currentHandler = tokens[client.unique].getToken();
+			var currentHandler = vm.tokens.getToken();
 			usedOutgoingMappings[params.topic] = currentHandler;
 			usedOutgoingHandles[currentHandler] = params.topic;
 			transfer.setHandle(currentHandler);
@@ -214,7 +230,6 @@ function publish(params) {
 			attach.setName(params.topic);
 			attach.setHandle(currentHandler);
 			attach.setRole(ENUM.RoleCode.SENDER);
-			//attach.setSndSettleMode(ENUM.SendCode.MIXED);
 			attach.setRcvSettleMode(ENUM.ReceiveCode.FIRST);
 			attach.setInitialDeliveryCount(0);
 			var source = new AMQPSource();
@@ -229,32 +244,14 @@ function publish(params) {
 		} catch (e) {
 			console.log(e)
 		}
-
-		this.emit('amqp.publish', encAttach, deliveryId);
+		sendData(encAttach, deliveryId, 'amqp.publishAttach');
 	}
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 function onDataRecieved(data, client) {
 
 	var decoded = {};
-	console.log('Data received', data);
-
 	try {
 		decoded = parser.decode(data);
 	} catch (error) {
@@ -271,12 +268,12 @@ function onDataRecieved(data, client) {
 
 		case ENUM.HeaderCode.DETACH:
 			var handle = decoded.getHandle();
-			this.emit('amqp.unsuback', handle);
+			processUnsuback(handle)
 			break;
 
 		case ENUM.HeaderCode.DISPOSITION:
-			var disposition = decoded;
-			processDisposition(this, disposition.getFirst(), disposition.getLast());
+			var disposition = decoded;			
+			processDisposition(this, disposition.getFirst(), disposition.getLast(), client);
 			break;
 
 		case ENUM.HeaderCode.FLOW:
@@ -287,39 +284,39 @@ function onDataRecieved(data, client) {
 			var header = decoded;
 			var packet = processProto(header.getChannel(), header.getProtocolId(), client);
 			if (packet) {
-				this.emit('amqp.open', packet);
+				sendData(packet, 1, 'amqp.open');  
 			}
 			break
 
 		case ENUM.HeaderCode.MECHANISMS:
 			var mechanisms = decoded;
 			var saslInit = processSASLMechanism(mechanisms.getMechanisms(), mechanisms.getChannel(), mechanisms.getType(), client);
-			this.emit('amqp.saslinit', saslInit);
+			if(saslInit)
+			 sendData(saslInit, 1, 'amqp.saslinit');
 			break
 
 		case ENUM.HeaderCode.OUTCOME:
 			var outcome = decoded;
 			var protoHeader = processSASLOutcome(outcome.getOutcomeCode());
-			this.emit('amqp.protoheader', protoHeader);
+			if(protoHeader)
+			sendData(protoHeader, 1, 'amqp.protoheader');
+
 			break;
 
 		case ENUM.HeaderCode.OPEN:
-			var begin = processOpen(client.keeapalive);
-			this.emit('amqp.begin', begin)
+			processOpen(client.keeapalive, this);
 			break;
 
 		case ENUM.HeaderCode.BEGIN:
-			this.emit('amqp.beginIN', client)
-			processBegin(client);
+			processBegin(client, this);
 			break;
 
 		case ENUM.HeaderCode.END:
-			var close = processEnd(decoded.getChannel());
-			this.emit('amqp.close', close);
+			var close = processEnd(decoded.getChannel());		
 			break;
 
 		case ENUM.HeaderCode.CLOSE:
-			this.emit('amqp.closeIN', client);
+			connectionDone(null, 'amqp.disconnect', null); 
 			break;
 
 		case ENUM.HeaderCode.TRANSFER:
@@ -331,7 +328,7 @@ function onDataRecieved(data, client) {
 
 			var qos = transfer.getSettled() ? ENUM.QoS.AT_MOST_ONCE : ENUM.QoS.AT_LEAST_ONCE;
 
-			this.emit('amqp.dispositionOUT', desposition, transfer, qos, topic);
+			processDispositionOUT(desposition, transfer, qos, topic, client)
 			break;
 	}
 }
@@ -416,7 +413,7 @@ function processProto(channel, protocolId, client) {
 function processFlow() {
 	// not implemented for now
 }
-function processOpen(timeout) {
+function processOpen(timeout, client) {
 	if (timeout)
 		idleTimeout = timeout
 	try {
@@ -429,41 +426,54 @@ function processOpen(timeout) {
 	} catch (e) {
 		console.log(e)
 	}
-	return result;
+
+	if (!result) return;
+	sendData(result, 1, 'amqp.begin');
+	db.loadDatabase();
+	if (client.isClean) {
+		db.remove({ 'type': 'amqp.subscribtion', 'subscribtion.connectionId': client.username, 'subscribtion.clientID':client.clientID }, { multi: true });
 }
 
-function processBegin(client) {
+}
+
+function processBegin(client, that) {
 	try {
-		// var topics = []
+		if (!that) return;
+		var id = client.username;
+		clearInterval(vm.connectTimeout)
+		db.loadDatabase();
+		db.remove({ type: 'amqp.connack' }, { multi: true }, function (err, docs) {
+			db.insert({
+				type: 'amqp.connack',
+				connectionId: id,
+				id: guid()
+			});
+		});
+		that.params.type = 'amqp.connection';
+		db.insert(that.params);
 
-		// db.loadDatabase();
-		// db.find({
-		//     type: 'amqp.subscribtion',
-		//     'subscribtion.connectionId': client.username,
-		//     'subscribtion.clientID': client.clientID,
-		// }, function (err, docs) {
-		//     if (docs) {
-		//         for (var i = 0; i < docs.length; i++) {
-		//             topics.push(docs[i].subscribtion)
-		//         }
-		//         // console.log('^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^4444444444444^^^^^^^^^^^^^^^^^^^^^^^^^^^')
-		//         // console.log(topics)
-		//         // subscribe(topics)
-		//     }
-		//     console.log('^^^^^^^^^^^11111111111111111111111111111111111111111111111111111111^^^^^^^')
-		//     console.log(topics)
-		//     if (topics.length)
-		//         subscribe(topics)
-		// });
+		var topics = []
+		var unique = client.unique
+		db.find({
+			type: 'amqp.subscribtion',
+			'subscribtion.connectionId': client.username,
+			'subscribtion.clientID': client.clientID,
+		}, function (err, docs) {
+			if (docs) {
+				for (var i = 0; i < docs.length; i++) {
+					if (docs[i]) {
+						docs[i].subscribtion.token = vm.tokens.getToken();
+						topics.push(docs[i].subscribtion)
+					}
+				}
 
+			}
 
+			if (topics.length)
+				that.Subscribe(topics)
+		});
 
-		// List < DBTopic > dbTopics = dbInterface.getTopics(account);
-		// for (DBTopic dbTopic : dbTopics)
-		// {
-		//     subscribe(new Topic[]
-		//         { new Topic(new Text(dbTopic.getName()), QoS.valueOf((int) dbTopic.getQos())) });
-		// }
+		ping();
 	} catch (e) {
 		console.log(e)
 	}
@@ -478,7 +488,8 @@ function processEnd() {
 	} catch (e) {
 		console.log(e)
 	}
-	return result;
+	if(result)
+		sendData(result, 1, 'amqp.end'); 	
 }
 
 function ping() {
@@ -487,19 +498,18 @@ function ping() {
 	} catch (e) {
 		console.log(e)
 	}
-	this.emit('amqp.pingreq', ping);
+	sendData(ping, -1, 'amqp.pingreq'); 
 }
 
 function processAttach(attach, obj) {
-
 	var self = obj;
 	var name = attach.getName();
 	var role = attach.getRole();
 	var handle = attach.getHandle();
 	var realHandle = null;
 	if (role != null) {
-		//if (role == ENUM.RoleCode.RECEIVER) {
-		realHandle = usedOutgoingMappings[name]
+		if (ENUM.RoleCode[role]) {
+		realHandle = usedOutgoingMappings[name];
 
 		if (realHandle && pendingMessages.length) {
 			for (var i = 0; i < pendingMessages.length; i++) {
@@ -507,47 +517,36 @@ function processAttach(attach, obj) {
 				if (currMessage.handle == realHandle) {
 					pendingMessages.splice(i, 1);
 					i--;
+					if(currMessage.getSettled()) {
+						connectionDone(currMessage.getDeliveryId())
+					}
 					try {
 						var encTransfer = parser.encode(currMessage)
-					} catch (e) { console.log(e) }
-
-					self.emit('amqp.publish', encTransfer, realHandle);
+					} catch (e) { console.log(e) }					
+					sendData(encTransfer, currMessage.getDeliveryId(), 'amqp.publish');
 				}
+			}
 			}
 		} else {
 			try {
-
-				self.emit('amqp.suback', attach, subscribtions.pullMessage(handle));
+				processSuback(attach, subscribtions.pullMessage(handle), self)
 			}
 			catch (e) {
 				console.log("An error occured while saving topic, " + e);
 			}
-		}
-		// } else {
-
-		// 	usedIncomingMappings[name] = handle;
-		// 	usedIncomingHandles[handle] = name;			
-		// 	var topic = {
-		// 		topic: name,
-		// 		token: handle
-		// 	}
-		// 	self.emit('amqp.suback', attach, topic);
-		// 	//self.emit('amqp.publishIN', handle, name);
-		// }
+		}		
 	}
 }
 
-function processDisposition(self, first, last) {
-
+function processDisposition(self, first, last, client) {
 	if (first) {
 		if (last) {
 			for (var i = first; i < last; i++) {
-				///timers.remove(i.intValue());	
-				self.emit('amqp.dispositionIN', messages.pullMessage(i), first);
+				processDispositionIN(messages.pullMessage(i), i, client)
 			}
 		}
 		else {
-			self.emit('amqp.dispositionIN', messages.pullMessage(first), first);
+			processDispositionIN(messages.pullMessage(first), first, client)
 
 		}
 	}
@@ -577,24 +576,118 @@ function processTransfer(data, handle, settled, deliveryId) {
 		return encDisposition;
 
 	}
+}
 
-	// var topicName = null;
-	// if (handle == null || !usedOutgoingHandles.containsKey(handle))
-	// 	return;
+function sendData(payload, packetID, parentEvent) {  
+    bus.send('amqp.sendData' + vm.unique, {
+        payload: payload,
+        username: vm.username,
+        packetID: packetID,
+        parentEvent: parentEvent,
+        unique: vm.unique
+    });    
+}
 
-	// topicName = usedOutgoingHandles[handle];
+function connectionDone(packetID, parentEvent, payload) {
+    bus.send('amqp.done' + vm.unique, {       
+        packetID: packetID,
+        username: vm.username,
+        parentEvent: parentEvent,
+        unique: vm.unique,
+        payload: payload
+    });
+}
 
-	// var message = new Message(account, topicName, new String(data.getData()), true, qos.getValue(), false, false);
-	// try
-	// {
-	// 	logger.info("storing publish to DB");
-	// 	dbInterface.saveMessage(message);
-	// }
-	// catch (SQLException e)
-	// {
-	// 	e.printStackTrace();
-	// }
+function processSuback(data, msg, client) {	
+	if (!data) return;
+	connectionDone(0, 'amqp.suback', data);
+	var subscribtions = [];
+	var clientID = client.clientID;
+	var username = client.id;
+	db.loadDatabase();
 
-	// if (listener != null)
-	// 	listener.messageReceived(message);
+	var subscribeData = {
+		type: 'amqp.subscribtion',
+		subscribtion: {
+			topic: msg.topic,
+			qos: msg.qos,
+			connectionId: username,
+			clientID: clientID,
+			token: msg.token
+		},
+	}
+	subscribtions.push(subscribeData);
+	db.remove({ 'type': 'amqp.subscribtion', 'subscribtion.topic': msg.topic }, { multi: true });
+	
+	db.insert(subscribtions);
+}
+
+function processUnsuback(token) {
+	if (!token) return;
+	connectionDone(token, 'amqp.unsuback', null);
+	db.loadDatabase();
+	db.remove({ 'type': 'amqp.subscribtion', 'subscribtion.token': token }, { multi: true });
+}
+
+function processDispositionIN(data, token, client) {	
+	connectionDone(token, 'amqp.dispositionIN', null);
+	if (!data) return;
+	db.loadDatabase();
+	var outMessage = {
+		type: 'amqp.message',
+		message: {
+			topic: data.topic,
+			qos: data.qos,
+			content: data.content,
+			connectionId: client.username,
+			direction: 'out',
+			unique: client.unique,
+			clientID: client.clientID
+		},
+		id: guid(),
+		time: (new Date()).getTime()
+	}
+	db.insert(outMessage);
+}
+
+function processDispositionOUT(data, transfer, qos, topic, client) {
+	var content = transfer.getData().getData().toString();
+	if (!data) return;
+	sendData(data, null, 'amqp.dispositionOUT');
+	var token = transfer.getHandle();
+	var topicName = topic;
+	var id = client.username;
+	var unique = client.unique;
+	var clientID = client.clientID;
+	db.loadDatabase();
+	db.find({
+		type: 'amqp.subscribtion', 'subscribtion.topic': topic
+	}, function (err, docs) {
+		if (docs.length) {
+			topicName = docs[0].subscribtion.topic
+		}
+
+	});
+	db.find({
+		type: 'amqp.subscribtion', 'subscribtion.token': token
+	}, function (err, docs) {
+		if (docs.length) {
+			topicName = docs[0].subscribtion.topic
+		}
+		var inMessage = {
+			type: 'amqp.message',
+			message: {
+				topic: topicName,
+				qos: qos,
+				content: content,
+				connectionId: id,
+				direction: 'in',
+				unique: unique,
+				clientID: clientID
+			},
+			id: guid(),
+			time: (new Date()).getTime()
+		}
+		db.insert(inMessage);
+	});
 }

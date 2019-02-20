@@ -30,7 +30,6 @@
                     sessionFactory.setSessionData(customer);
                     toastr.success('Successfully logged in!', data);
                 }, function(data) {
-                    console.log(data);
                     toastr.error(data.data, 'Oops some error here!');
 
                 })
@@ -40,6 +39,9 @@
         }
 
         function disconnect(params) {
+            var session = angular.fromJson(sessionStorage.getItem('mqttSession'));
+            console.log(params)
+            
             $http.post(mqttConstants.API_SERVER_URL + mqttConstants.API_DISCONNECT_URL, params)
                 .then(function(data) {
                     $location.path('/');

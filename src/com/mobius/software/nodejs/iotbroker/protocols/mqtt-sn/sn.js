@@ -63,6 +63,21 @@ var Willtopicreq = require('./lib/SNwilltopicreq');
 var Willtopicresp = require('./lib/SNwilltopicresp');
 var Willtopicupd = require('./lib/SNwilltopicupd');
 
+var bus = require('servicebus').bus({
+    queuesFile: `.queues.sn.${process.pid}`
+});
+var vm = this;
+// var unique;
+// var thisClientID;
+var guid = require('./lib/guid');
+var Datastore = require('nedb');
+var connections = {};
+var timers = {};
+var tokens = {};
+var db = new Datastore({ filename: 'data' });
+var CLIENT = {};
+var tokens = {};
+var pingTimeout = {};
 
 var FullTopic = require('./lib/topics/fulltopic');
 var IdTopic = require('./lib/topics/idtopic');
@@ -119,15 +134,15 @@ function disconnect(params) {
     } catch (e) {
         console.log('Parser can`t encode provided params.');
     }
-    this.emit('sn.disconnect', encDisconnect);
+    sendData(encDisconnect, 0, 'sn.disconnect');
 }
 
-function subscribe(params) {
+function subscribe(params) {   
     var topics = [];
     for (var i = 0; i < params.topics.length; i++) {
-       topics.push( new FullTopic(params.topics[i].topic, params.topics[i].qos));
+        topics.push(new FullTopic(params.topics[i].topic, params.topics[i].qos));
 
-       ///topics.push(SNwilltopic(new FullTopic(params.topics[i].topic, params.topics[i].qos),false));
+        ///topics.push(SNwilltopic(new FullTopic(params.topics[i].topic, params.topics[i].qos),false));
     }
     var subscribe = SNsubscribe(params.token, topics[0]);
     try {
@@ -136,68 +151,69 @@ function subscribe(params) {
         console.log('Parser can`t encode provided params.');
     }
     subscribtions.pushMessage(params.token, params);
-    this.emit('snsubscribe', encSubscribe, params.token);
+    // this.emit('snsubscribe', encSubscribe, params.token);
+    sendData(encSubscribe, params.token, 'snsubscribe');
 }
 
 function unsubscribe(params) {
-   var topics = [];
+    var topics = [];
     for (var i = 0; i < params.topic.length; i++) {
-        topics.push( new FullTopic(params.topic[i].topic, params.topic[i].qos));
- 
-      }
-       var unsubscribe = SNunsubscribe(params.token, topics[0]);
+        topics.push(new FullTopic(params.topic[i].topic, params.topic[i].qos));
+
+    }
+    var unsubscribe = SNunsubscribe(params.token, topics[0]);
     try {
         var encUnsubscribe = parser.encode(unsubscribe);
     } catch (e) {
         console.log('Parser can`t encode provided params.');
     }
     unsubscribtions.pushMessage(params.token, topics);
-    this.emit('snunsubscribe', encUnsubscribe, params.token);
+    sendData(encUnsubscribe, params.token, 'snunsubscribe', encUnsubscribe.topicID);
 }
 
 
 
 function register(params) {
-     try {
+    try {
         var register = SNregister({
             topicID: 0,
             packetID: params.params.token,
             topicName: params.params.topic
         })
-         var encRegister = parser.encode(register);
-         var packetID = params.params.token
-        
+        var encRegister = parser.encode(register);
+        var packetID = params.params.token
+
     } catch (error) {
         console.log('Parser can`t encode provided params.');
     }
-    this.emit('snregister', encRegister, packetID)
+    processRegister(encRegister, packetID, this)
 }
 
 
 
 function publish(params) {
-     if (params.qos == 0) {
+    if (params.qos == 0) {
         params.token = null;
     }
     try {
-        //var publish = Publish(params.token, Topic(Text(params.topic), params.qos), new Buffer.from(params.content), params.retain, params.isDupe);
         var publish = SNpublish(params.packetID, new IdTopic(params.topicID, params.qos), params.content, params.retain, params.isDupe);
         var encPublish = parser.encode(publish);
     } catch (error) {
         console.log('Parser can`t encode provided params.');
     }
     messages.pushMessage(params.token, params);
-    this.emit('snpublish', encPublish, params, params.token);
+    // this.emit('snpublish', encPublish, params, params.token);
+    processPublish(encPublish, params, this)
 }
 
-function connect(params) {   
-   conntectionParams = params;
+function connect(params) {
+    conntectionParams = params;
     var connect = SNconnect({
         clientID: params.clientID || 'SN-' + Math.random().toString(18).substr(2, 16),
         isClean: params.isClean,
         keepalive: params.keepalive,
     });
-    
+
     if (!!params.will) {
         connect.will = Will(Topic(Text(params.will.topic), params.will.qos), Buffer.from(params.will.content), params.will.retain);
     }
@@ -220,7 +236,7 @@ function topicUpdate(params) {
     }
 
     messages.pushMessage(params.token, params);
-    this.emit('sntopicupd', enctopicUpd, params, params.token);
+   // this.emit('sntopicupd', enctopicUpd, params, params.token);
 };
 
 function msgUpdate(params) {
@@ -232,10 +248,13 @@ function msgUpdate(params) {
     }
 
     messages.pushMessage(params.token, params);
-    this.emit('snmsgupd', encmsgUpd, params, params.token);
+   // this.emit('snmsgupd', encmsgUpd, params, params.token);
 }
 
-function onDataRecieved(data) {
+function onDataRecieved(data, unique, thisClientID, tokens) {
+    vm.unique = unique;
+    vm.tokens = tokens;
+    vm.thisClientID = thisClientID;
     var that = this;
     var decoded = {};
     console.log("Data received, : ", data);
@@ -247,34 +266,35 @@ function onDataRecieved(data) {
         console.log('Parser unadble to decode received data.');
     }
 
-    if (decoded.getType() == ENUM.MessageType.SN_WILLTOPICREQ) {       
-        this.emit('snwilltopic');
+    if (decoded.getType() == ENUM.MessageType.SN_WILLTOPICREQ) {
+        processWillTopic();
     }
 
-    if (decoded.getType() == ENUM.MessageType.SN_WILLMSGREQ) {        
-        this.emit('snwillmsg');
+    if (decoded.getType() == ENUM.MessageType.SN_WILLMSGREQ) {
+        processWillmsg()
     }
 
-    if (decoded.getType() == ENUM.MessageType.SN_CONNACK) {  
-        this.emit('snconnack', decoded);
-    }
-
-    if (decoded.getType() == ENUM.MessageType.SN_REGACK) { 
-         this.emit('snregack', decoded);   
+    if (decoded.getType() == ENUM.MessageType.SN_CONNACK) {
        
+        processConnack(decoded, vm.thisClientID)
+    }
+
+    if (decoded.getType() == ENUM.MessageType.SN_REGACK) {
+        processRegack(decoded, this);
+
     }
 
     if (decoded.getType() == ENUM.MessageType.SN_PUBACK) {
-        this.emit('snpuback', decoded);
+        processPuback(decoded, this);
     }
 
     if (decoded.getType() == ENUM.MessageType.SN_PUBREC) {
         var id = decoded.getPacketID();
-        this.emit('snpubrec', id);
+         connectionDone(id, 'snpubrec');
         try {
             var pubrel = SNpubrel(id);
             var encPubrel = parser.encode(pubrel);
-            this.emit('snpubrel', encPubrel, id);
+            sendData(encPubrel, id, 'snpubrel');
         } catch (error) {
             console.log('Parser can`t encode provided params.');
         }
@@ -282,18 +302,18 @@ function onDataRecieved(data) {
 
     if (decoded.getType() == ENUM.MessageType.SN_PUBCOMP) {
         var id = decoded.getPacketID();
-        this.emit('snpubcomp', decoded, messages.pullMessage(id));
+        processPubcomp(this, decoded, messages.pullMessage(id))
     }
 
     if (decoded.getType() == ENUM.MessageType.SN_SUBACK) {
-         var id = decoded.getPacketID();
-         var codes = decoded.getCode();
-         this.emit('snsuback', decoded, subscribtions.pullMessage(id));
+        var id = decoded.getPacketID();
+        var codes = decoded.getCode();
+        processSuback(decoded, subscribtions.pullMessage(id))
     }
 
     if (decoded.getType() == ENUM.MessageType.SN_UNSUBACK) {
         var id = decoded.getPacketID();
-        this.emit('snunsuback', decoded, unsubscribtions.pullMessage(id));
+        processUnsuback(decoded, unsubscribtions.pullMessage(id));
     }
 
     if (decoded.getType() == ENUM.MessageType.SN_PINGRESP) {
@@ -312,13 +332,14 @@ function onDataRecieved(data) {
     }
 
     if (decoded.getType() == ENUM.MessageType.SN_REGISTER) {
-          var regack = SNregack({
+        var regack = SNregack({
             topicID: decoded.getTopicID(),
             packetID: decoded.getPacketID(),
             returnCode: ENUM.ReturnCode.SN_ACCEPTED_RETURN_CODE
         })
         var encRegack = parser.encode(regack);
-        this.emit('snregackout', encRegack);
+        // this.emit('snregackout', encRegack);
+        sendData(data, null, 'snregackout');
     }
 
     if (decoded.getType() == ENUM.MessageType.SN_ENCAPSULATED) {
@@ -337,8 +358,8 @@ function onDataRecieved(data) {
         this.emit('sngwinfo');
     }
 
-    if (decoded.getType() == ENUM.MessageType.SN_DISCONNECT) {  
-        this.emit('sn.disconnectin');
+    if (decoded.getType() == ENUM.MessageType.SN_DISCONNECT) {
+        connectionDone(null, 'sn.disconnectin');
     }
 
     if (decoded.getType() == ENUM.MessageType.SN_PUBLISH) {
@@ -353,12 +374,12 @@ function onDataRecieved(data) {
         var message = {
             packetID: id,
             topic: publishTopic,
-            qos:  publishQos,
+            qos: publishQos,
             content: publishContent
         }
         switch (publishQos) {
             case 0:
-                this.emit('snpublishin', message);
+                processPublishin(message)
                 break;
             case 1:
                 var snpuback = SNpuback({
@@ -367,11 +388,11 @@ function onDataRecieved(data) {
                     code: ENUM.ReturnCode.SN_ACCEPTED_RETURN_CODE
                 })
                 var encPublishPuback = parser.encode(snpuback);
-                this.emit('snpubackout', encPublishPuback, message);
+                processPubackout(encPublishPuback, message)
                 break;
             case 2:
-                 var encPublishPubrec = parser.encode(SNpubrec(id));
-                 this.emit('snpubrecout', encPublishPubrec, message);
+                var encPublishPubrec = parser.encode(SNpubrec(id));
+                processPubrecout(encPublishPubrec, message, this)
                 messages.pushMessage(id, message)
                 break;
             default:
@@ -382,12 +403,235 @@ function onDataRecieved(data) {
     if (decoded.getType() == ENUM.MessageType.SN_PUBREL) {
         var id = decoded.getPacketID();
         var encPubrelPubcomp = parser.encode(SNpubcomp(id));
-        this.emit('snpubcompout', encPubrelPubcomp, decoded);
+        processPubcompout(encPubrelPubcomp, decoded, this)
     }
 }
 
 function ping(id) {
     var pingreq = SNpingreq(id);
     var encPing = parser.encode(pingreq);
-    this.emit('snpingreq', encPing);
+    sendData(encPing, 0, 'snpingreq');
 }
+
+function sendData(payload, packetID, parentEvent, topicID) {
+    try {
+        bus.send('udp.senddata' + vm.unique, {
+            payload: payload,
+            clientID: vm.thisClientID,
+            packetID: packetID,
+            parentEvent: parentEvent,
+            unique: vm.unique,
+            topicID: topicID,
+        });
+    } catch(e) {
+        console.log(e);
+    }    
+}
+
+function connectionDone(packetID, parentEvent) {
+    try {
+        bus.send('udp.done' + vm.unique, {
+            clientID: vm.thisClientID,
+            unique: vm.unique,
+            parentEvent: parentEvent,
+            packetID: packetID
+        });
+    } catch(e) { console.log(e) }    
+}
+
+function saveMessage(msg) {
+    console.log('SAVE MESSAGE')
+    console.log(msg)
+    try{
+        var message = {
+            type: 'snmessage',
+            message: {
+                topicID: msg.topicID || '',
+                topic: msg.topic || '',
+                qos: msg.qos,
+                content: msg.content || '',
+                connectionId: vm.thisClientID,
+                direction: msg.direction || 'in',
+                unique: vm.unique,
+                packetID: msg.packetID || '',
+            },
+            id: guid(),
+            time: (new Date()).getTime()
+        }
+    
+        db.loadDatabase();
+        db.insert(message);
+    } catch(e) {console.log(e) }   
+}
+
+function processConnack(data, id) {
+    connectionDone(null, 'snconnack');
+    db.loadDatabase();
+    if (data.getCode() == 'ACCEPTED') {
+        db.remove({ type: 'snconnack' }, { multi: true }, function (err, docs) {
+            db.insert({
+                type: 'snconnack',
+                connectionId: id,
+                id: guid()
+            });
+        });
+        ping(id);
+    } else {
+        db.remove({ type: 'snconnack' }, { multi: true }, function (err, docs) {
+        });
+    }
+}
+
+function processRegister(data, packetID, client) {
+    if (client.publish.params.qos == 0) {
+       vm.tokens.releaseToken(packetID);
+    }
+    sendData(data, null, 'snregister');
+}
+
+function processWillTopic() {
+    var willtopic = SNwilltopic(new FullTopic(this.topic, CLIENT[msg.params.connection.unique].qos), CLIENT[msg.params.connection.unique].retain);
+    var message = parser.encode(willtopic);
+    sendData(message, null, 'snwilltopic');
+}
+
+function processUnsuback(data, msg) {
+    connectionDone(data.getPacketID(), 'snunsuback');
+    db.loadDatabase();
+   vm.tokens.releaseToken(data.getPacketID());
+    for (var i = 0; i < msg.length; i++) {
+        db.remove({ 'type': 'snsubscribtion', 'subscribtion.topic': msg[i].getTopic() }, { multi: true });
+    }
+}
+
+function processSuback(data, msg) {
+    connectionDone(data.getPacketID(), 'snsuback');   
+    try {
+        vm.tokens.releaseToken(data.getPacketID());
+    } catch(e) {
+        console.log(e)
+    }
+    var subscribtions = [];
+    db.loadDatabase();
+    for (var i = 0; i < msg.topics.length; i++) {
+        var subscribeData = {
+            type: 'snsubscribtion',
+            subscribtion: {
+                topic: msg.topics[i].topic,
+                qos: msg.topics[i].qos,
+                connectionId: msg.clientID,
+                unique: vm.unique,
+                topicID: data.getTopicID()
+            },
+        }
+        subscribtions.push(subscribeData);
+        db.remove({ 'type': 'subscribtion', 'subscribtion.topic': msg.topics[i].topic }, { multi: true });
+    }
+    db.insert(subscribtions);
+}
+
+function processWillmsg() {
+    var willmessage = SNwillmsg(this[unique].message)
+    var message = parser.encode(willmessage);
+    sendData(message, null, 'snwillmsg');
+}
+
+function processRegack(data, client) {
+    var pub = client.publish.params
+
+    pub.packetID = data.getPacketID();
+    pub.topicID = data.getTopicID()
+    try {
+        client.Publish(pub);
+    } catch(e) {
+        console.log(e)
+    } 
+}
+
+function processPublish(data, params, client) {
+    var parentEvent = 'snpublish';
+
+    if (client.publish.params.qos == 0) {
+        parentEvent = 'snpublishQos0';
+    }
+    sendData(data, params.packetID, parentEvent);
+    if (client.publish.params.qos == 0) {
+        var msg = client.publish.params;
+        msg.direction = 'out'
+        
+        saveMessage(msg);
+        connectionDone(null, 'snpubcomp');
+    }
+}
+
+function processPuback(data, client) {
+    connectionDone(data.getPacketID(), 'snpuback');
+   vm.tokens.releaseToken(data.getPacketID());
+    if (data.getCode() == ENUM.ReturnCode.SN_ACCEPTED_RETURN_CODE) {
+        var msg = client.publish.params;
+        msg.direction = 'out'
+        saveMessage(msg);
+    }
+}
+
+function processPubcomp(client, data) {
+    connectionDone(data.getPacketID(), 'snpubcomp');
+   vm.tokens.releaseToken(data.getPacketID());
+    var msg = client.publish.params;
+    msg.direction = 'out';
+    saveMessage(msg);
+}
+
+function processPublishin(data) {
+    if (!data) return;
+    if (data.qos == 0) {
+        db.loadDatabase();
+        db.find({
+            'subscribtion.topicID': parseInt(data.topic)
+        }, function (err, docs) {
+            if(docs.length) {
+                data.topicID = data.topic;
+                data.topic = docs[0].subscribtion.topic
+                saveMessage(data);
+            }           
+        });
+    }
+}
+
+function processPubackout(data, msg) {
+    if (!data) return;
+    sendData(data, msg.packetID, 'snpubackout');
+    var id = this.id;
+    db.loadDatabase();
+    db.find({
+        'subscribtion.topicID': parseInt(msg.topic)
+    }, function (err, docs) {
+        msg.topic = docs[0].subscribtion.topic
+        saveMessage(msg);
+    });
+}
+
+function processPubrecout(data, msg, client) {
+    client.topic = msg
+    if (!data) return;
+    sendData(data, msg.packetID, 'snpubrecout');
+}
+
+function processPubcompout(data, msg, client) {
+    if (!data) return;
+    var packetID = msg.getPacketID();
+    sendData(data, msg.getPacketID(), 'snpubcompout');
+    var id = this.id;
+    db.loadDatabase();
+    db.find({
+        'subscribtion.topicID': parseInt(client.topic.topic)
+    }, function (err, docs) {
+
+        if (docs.length) {
+            var packet = client.topic;
+            packet.topicID = client.topic.topic;
+            packet.topic = docs[0].subscribtion.topic
+            saveMessage(packet);
+        }
+    });
+} 

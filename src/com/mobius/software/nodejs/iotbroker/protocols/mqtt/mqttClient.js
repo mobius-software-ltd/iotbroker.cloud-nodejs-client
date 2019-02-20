@@ -32,7 +32,7 @@ var TOKENS = require('./lib/Tokens');
 var TIMERS = require('./lib/Timers');
 var Timer = require('./lib/Timer');
 var bus = require('servicebus').bus({
-    queuesFile: `.queues.mqtt.${process.pid}`
+    queuesFile: `.queues.mqtt-cl.${process.pid}`
 });
 
 const cluster = require('cluster');
@@ -40,6 +40,18 @@ const numCPUs = args[0] || require('os').cpus().length;
 
 var connectionParams = {};
 var worker = [];
+
+var connections = {};
+var timers = {};
+var tokens = {};
+var db = new Datastore({ filename: 'data' });
+var CLIENT = {};
+var tokens = {};
+var pingTimeout = {};
+var unique;
+var username;
+var thisClientID;
+
 if (cluster.isMaster) {
     if (!module.parent) {
         for (var i = 0; i < numCPUs; i++) {
@@ -50,236 +62,18 @@ if (cluster.isMaster) {
         console.log(`worker ${worker.process.pid} died`);
     });
 } else {
-    var connections = {};
-    var timers = {};
-    var tokens = {};
-    var db = new Datastore({ filename: 'data' });
-    var CLIENT = {};
-    var tokens = {};
-    var pingTimeout = {};
-    var unique;
-    var username;
-    var thisClientID;
-
-    setTimeout(function() {
-      
-        bus.listen('mqtt.connect', function(msg) { 
-            bus.send('net.newSocket', msg);
-            db.loadDatabase();
-            db.remove({ 'type': 'connection', 'connection.username': msg.params.connection.username }, { multi: true });
-
-            if(msg.params.connection.isClean) {
-                db.remove({ 'type': 'subscribtion', 'subscribtion.connectionId': msg.params.connection.username, 'subscribtion.clientID': msg.params.connection.clientID }, { multi: true });
-              //  db.remove({ 'type': 'message', 'message.connectionId': msg.params.connection.username, 'message.clientID': msg.params.connection.clientID }, { multi: true });
-            }
-
-            db.insert(msg.params);
-            
+    setTimeout(function() {      
+        bus.listen('mqtt.connect', function(msg) { connectProcess(msg)
             unique = msg.params.connection.unique;
-            if(unique) {            
-                bus.listen('mqtt.disconnect' + unique, function(msg) { 
-                    if (typeof CLIENT[msg.unique] == 'undefined') return;
-                    CLIENT[msg.unique].id = msg.username;
-                    db.loadDatabase();
-                    db.remove({ 'type': 'connection', 'connection.username': msg.username }, { multi: true });
-                    CLIENT[msg.unique].Disconnect();
-                });
-
-                bus.listen('mqtt.publish' + unique, function(msg) {
-                    if (typeof CLIENT[msg.unique] == 'undefined') return;
-                    if (msg.params.qos != 0)
-                        msg.params.token = tokens[msg.unique].getToken();
-        
-                    CLIENT[msg.unique].id = msg.username;
-                    CLIENT[msg.unique].Publish(msg.params);
-                });
-
-                bus.listen('mqtt.subscribe' + unique, function(msg) {                    
-                    if (typeof CLIENT[msg.unique] == 'undefined') return;
-                    msg.params.token = tokens[msg.unique].getToken();
-                    CLIENT[msg.unique].Subscribe(msg.params);
-                });
-
-                
-                bus.listen('mqtt.unsubscribe' + unique, function(msg) {
-                    if (typeof CLIENT[msg.unique] == 'undefined') return;
-                    msg.params.token = tokens[msg.unique].getToken();
-                    CLIENT[msg.unique].Unsubscribe(msg.params);
-                });
-
-                bus.listen('mqtt.socketOpened' + unique, function(msg) {
-                    CLIENT[msg.params.connection.unique] = new mqtt();
-                    CLIENT[msg.params.connection.unique].id = msg.params.connection.username;
-                    username = msg.params.connection.username;
-                    CLIENT[msg.params.connection.unique].clientID = msg.params.connection.clientID;
-                    thisClientID = msg.params.connection.clientID 
-                    CLIENT[msg.params.connection.unique].unique = msg.params.connection.unique;
-                    unique = msg.params.connection.unique;
-                    tokens[msg.params.connection.unique] = new TOKENS();
-        
-                    CLIENT[msg.params.connection.unique].on('mqttConnect', function(data) {
-                         sendData(data, 0, 'mqttConnect'); });
-        
-                    CLIENT[msg.params.connection.unique].on('mqttDisconnect', function(data) {               
-                        sendData(data, 0, 'mqttDisconnect');
-                        connectionDone(0, 'mqttDisconnect');
-        
-                        delete CLIENT[this.unique];
-                        delete tokens[this.unique];
-                    });
-        
-                    CLIENT[msg.params.connection.unique].on('mqttConnack', function(data) {              
-                        var that = this;
-                        connectionDone(data.getPacketID(), 'mqttConnack');  
-        
-                        db.loadDatabase();
-                        if (data.getReturnCode() == 'ACCEPTED') {
-                            db.remove({ type: 'connack' }, { multi: true }, function(err, docs) {
-                                db.insert({
-                                    type: 'connack',
-                                    connectionId: that.id,
-                                    unique: that.unique,
-                                    id: guid()
-                                });
-                            });
-                            // bus.send
-                            CLIENT[this.unique].Ping();
-                        } else {
-                            db.remove({ type: 'connack' }, { multi: true }, function(err, docs) {
-        
-                            });
-                        }
-                    });
-        
-                    CLIENT[msg.params.connection.unique].on('mqttPing', function(data) {
-                         sendData(data, 0, 'mqttPing');
-        
-                        pingTimeout = setTimeout(function() {
-                            publishDisconnect();
-                        }, msg.params.connection.keepalive * 2 * 1000);
-                    });
-        
-                    CLIENT[msg.params.connection.unique].on('mqttPubrec', function(packetID) {
-                        connectionDone(packetID, 'mqttPubrec');  
-                    });
-        
-                    CLIENT[msg.params.connection.unique].on('mqttPublish', function(data, msg, packetID) {
-                        sendData(data, packetID, 'mqttPublish');
-                        connectionDone(packetID, 'mqttPublish');  
-                       
-                        if (msg.qos == 0) {
-                            msg.direction = 'out';
-                            saveMessage(msg);                   
-                        }
-                    });
-        
-                    CLIENT[msg.params.connection.unique].on('mqttPubrel', function(data, packetID) {
-                        sendData(data, packetID, 'mqttPubrel');               
-                    });
-        
-                    CLIENT[msg.params.connection.unique].on('mqttPuback', function(data, msg) {
-                        connectionDone(data.getPacketID(), 'mqttPuback'); 
-                        tokens[this.unique].releaseToken(data.getPacketID());
-                        msg.direction = 'out';
-                        saveMessage(msg);
-                        
-                    });
-        
-                    CLIENT[msg.params.connection.unique].on('mqttPubcomp', function(data, msg) {
-                        connectionDone(data.getPacketID(), 'mqttPubcomp');                
-                        tokens[this.unique].releaseToken(data.getPacketID());
-                        msg.direction = 'out';
-                        saveMessage(msg);              
-                    });
-        
-                    CLIENT[msg.params.connection.unique].on('mqttSubscribe', function(data, packetID) {
-                        sendData(data, packetID, 'mqttSubscribe');               
-                    });
-        
-                    CLIENT[msg.params.connection.unique].on('mqttSuback', function(data, msg) {
-                        connectionDone(data.getPacketID(), 'mqttSuback'); 
-                       
-                        tokens[this.unique].releaseToken(data.getPacketID());
-                        var subscribtions = [];
-                        var clientID = this.clientID
-                        db.loadDatabase();
-                        for (var i = 0; i < msg.topics.length; i++) {
-                            var subscribeData = {
-                                type: 'subscribtion',
-                                subscribtion: {
-                                    topic: msg.topics[i].topic,
-                                    qos: msg.topics[i].qos,
-                                    connectionId: msg.username,
-                                    clientID: clientID
-                                },
-                            }
-                            subscribtions.push(subscribeData);
-                            db.remove({ 'type': 'subscribtion', 'subscribtion.topic': msg.topics[i].topic }, { multi: true });
-                        }
-                        db.insert(subscribtions);
-                    });
-        
-                    CLIENT[msg.params.connection.unique].on('mqttUnsubscribe', function(data, packetID) {
-                        sendData(data, packetID, 'mqttUnsubscribe');                
-                    });
-        
-                    CLIENT[msg.params.connection.unique].on('mqttUnsuback', function(data, msg) {
-                        connectionDone(data.getPacketID(), 'mqttUnsuback');
-                       
-                        db.loadDatabase();
-                        tokens[this.unique].releaseToken(data.getPacketID());
-                        for (var i = 0; i < msg.length; i++) {
-                            db.remove({ 'type': 'subscribtion', 'subscribtion.topic': msg[i] }, { multi: true });
-                        }
-                    });
-        
-                    CLIENT[msg.params.connection.unique].on('mqttPublishIn', function(msg) {
-                        if (!msg) return;
-        
-                        msg.direction = 'in';
-                        saveMessage(msg);               
-                    });
-        
-                    CLIENT[msg.params.connection.unique].on('mqttPubackOut', function(data, msg) {
-                        if (!data) return;
-        
-                        sendData(data, msg.packetID, 'mqttPubackOut'); 
-        
-                        msg.direction = 'in';
-                        saveMessage(msg);  
-                    });
-        
-                    CLIENT[msg.params.connection.unique].on('mqttPubrecOut', function(data, msg) {
-                        if (!data) return;
-                        sendData(data, msg.packetID, 'mqttPubrecOut');  
-                    });
-        
-                    CLIENT[msg.params.connection.unique].on('mqttPubcompOut', function(data, id, msg) {               
-                        if (!data) return;
-                        sendData(data, id, 'mqttPubcompOut'); 
-                        if(msg) {
-                            msg.direction = 'in';
-                            saveMessage(msg); 
-                        }                    
-                    });
-        
-                    CLIENT[msg.params.connection.unique].on('mqttPingResp', function() {
-                        clearTimeout(pingTimeout);
-                        pingTimeout = setTimeout(function() {
-                            publishDisconnect()                   
-                        }, msg.params.connection.keepalive * 2 * 1000);
-                    });
-        
-                    CLIENT[msg.params.connection.unique].Connect(msg.params.connection);
-                });
-        
-                bus.listen('mqtt.dataReceived' + unique, function(msg) {
-                    if (typeof CLIENT[msg.unique] == 'undefined') return;
-                    CLIENT[msg.unique].onDataRecieved(Buffer.from(msg.payload));
-                });
+            if(unique) {    
+                bus.listen('mqtt.socketOpened' + unique, function(msg) { socketOpenedprocess(msg); });        
+                bus.listen('mqtt.disconnect' + unique, function(msg) {  disconnectProcess(msg); });
+                bus.listen('mqtt.publish' + unique, function(msg) { publishProcess(msg); });
+                bus.listen('mqtt.subscribe' + unique, function(msg) { subscribeProcess(msg); });                
+                bus.listen('mqtt.unsubscribe' + unique, function(msg) { unsubscribeProcess(msg); });
+                bus.listen('mqtt.dataReceived' + unique, function(msg) { dataReceivedProcess(msg); });
             }
         });
-
     }, 100 * cluster.worker.id);
 }
 
@@ -300,50 +94,64 @@ function getData(req, res) {
     });
 }
 
-function sendData(payload, packetID, parentEvent) {       
-    bus.send('net.sendData' + unique, {
-        payload: payload,
-        username: username,
-        packetID: packetID,
-        parentEvent: parentEvent,
-        unique: unique
-    });    
-}
-
-function connectionDone(packetID, parentEvent) {
-    bus.send('net.done' + unique, {
-        packetID: packetID,
-        username: username,
-        parentEvent: parentEvent,
-        unique: unique
-    });
-}
-
-function saveMessage(msg) {
-    var message = {
-        type: 'message',
-        message: {
-            topic: msg.topic,
-            qos: msg.qos,
-            content: msg.content,
-            connectionId: username,
-            direction: msg.direction,
-            unique: unique,
-            clientID: thisClientID
-        },
-        id: guid(),
-        time: (new Date()).getTime()
-    }
+function connectProcess(msg) {
+    bus.send('net.newSocket', msg);
     db.loadDatabase();
-    db.insert(message);
+    db.remove({ 'type': 'connection', 'connection.username': msg.params.connection.username }, { multi: true });
+
+    if(msg.params.connection.isClean) {
+        db.remove({ 'type': 'subscribtion', 'subscribtion.connectionId': msg.params.connection.username, 'subscribtion.clientID': msg.params.connection.clientID }, { multi: true });
+      //  db.remove({ 'type': 'message', 'message.connectionId': msg.params.connection.username, 'message.clientID': msg.params.connection.clientID }, { multi: true });
+    }
+
+    db.insert(msg.params);
 }
 
-function publishDisconnect() {
-    bus.send('mqtt.disconnect' + unique, {
-        msg: 'disconnect',
-        username: username,
-        unique: unique
-    });
+function disconnectProcess(msg) {
+    if (typeof CLIENT[msg.unique] == 'undefined') return;
+    CLIENT[msg.unique].id = msg.username;
+    db.loadDatabase();
+    db.remove({ 'type': 'connection', 'connection.username': msg.username }, { multi: true });
+    CLIENT[msg.unique].Disconnect();
+}
+
+function publishProcess(msg) {
+    if (typeof CLIENT[msg.unique] == 'undefined') return;
+    if (msg.params.qos != 0)
+        msg.params.token = tokens[msg.unique].getToken();
+
+    CLIENT[msg.unique].id = msg.username;
+    CLIENT[msg.unique].Publish(msg.params);
+}
+
+function  subscribeProcess(msg) {
+    if (typeof CLIENT[msg.unique] == 'undefined') return;
+    msg.params.token = tokens[msg.unique].getToken();
+    CLIENT[msg.unique].Subscribe(msg.params);
+}     
+
+function unsubscribeProcess(msg) {
+    if (typeof CLIENT[msg.unique] == 'undefined') return;
+    msg.params.token = tokens[msg.unique].getToken();
+    CLIENT[msg.unique].Unsubscribe(msg.params);
+}
+
+function dataReceivedProcess(msg) {
+    if (typeof CLIENT[msg.unique] == 'undefined') return;
+    CLIENT[msg.unique].onDataRecieved(Buffer.from(msg.payload));
+}
+
+function socketOpenedprocess(msg) {
+
+    CLIENT[msg.params.connection.unique] = new mqtt();
+    CLIENT[msg.params.connection.unique].id = msg.params.connection.username;
+    username = msg.params.connection.username;
+    CLIENT[msg.params.connection.unique].clientID = msg.params.connection.clientID;
+    thisClientID = msg.params.connection.clientID 
+    CLIENT[msg.params.connection.unique].unique = msg.params.connection.unique;  
+    tokens[msg.params.connection.unique] = new TOKENS();
+  
+    CLIENT[msg.params.connection.unique].Connect(msg.params.connection);
 }
 var methods = {
     send: send,

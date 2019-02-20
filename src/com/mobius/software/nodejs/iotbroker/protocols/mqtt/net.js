@@ -48,20 +48,19 @@ if (cluster.isMaster) {
     setTimeout(function () {       
 
         bus.listen('net.newSocket', function (msg) { 
-        
+            
             unique = msg.params.connection.unique;
-           
              bus.listen('net.sendData' + unique, function(msg) { sendData(msg) });
              bus.listen('net.done' + unique, function(msg) { connectionDone(msg) });
 
-            createSocket(msg);
+                createSocket(msg);           
         });
        
 
     }, 100 * (cluster.worker.id + 4));
 }
 
-function createSocket(msg) {
+function createSocket(msg) {    
     try {
         if (msg.params.connection.secure) {
             if (msg.params.connection.certificate) {
@@ -72,7 +71,7 @@ function createSocket(msg) {
                 };                        
                 socket = tls.connect(msg.params.connection.port, msg.params.connection.host, options);
             } else {
-                 socket = tls.connect(msg.params.connection.port, msg.params.connection.host);
+                socket = tls.connect(msg.params.connection.port, msg.params.connection.host);
             }
         } else {
              socket = net.createConnection(msg.params.connection.port, msg.params.connection.host);
@@ -158,7 +157,7 @@ function sendData(msg) {
     // connections[msg.unique].write(Buffer.from(msg.payload));
 };
 
-function connectionDone(msg) {
+function connectionDone(msg) {   
     if (typeof timers[msg.unique] == 'undefined') return;
     timers[msg.unique].releaseTimer(msg.packetID);
 

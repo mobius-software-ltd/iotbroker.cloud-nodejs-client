@@ -22,7 +22,7 @@ var args = process.argv.slice(2);
 
 var WebSocketClient = require('websocket').client;
 var bus = require('servicebus').bus({
-    queuesFile: `.queues.ws.${process.pid}`
+    queuesFile: `.queues.ws-ws.${process.pid}`
 });
 var cluster = require('cluster');
 var numCPUs = args[0] || require('os').cpus().length;
