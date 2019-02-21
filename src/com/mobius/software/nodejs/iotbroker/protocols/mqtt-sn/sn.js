@@ -223,8 +223,6 @@ function connect(params) {
     } catch (error) {
         console.log('Parser can`t encode provided params.');
     }
-
-    this.emit('sn.connect', encConnect);
 }
 
 function topicUpdate(params) {
@@ -251,7 +249,7 @@ function msgUpdate(params) {
    // this.emit('snmsgupd', encmsgUpd, params, params.token);
 }
 
-function onDataRecieved(data, unique, thisClientID, tokens) {
+function onDataRecieved(data, unique, thisClientID, tokens) {   
     vm.unique = unique;
     vm.tokens = tokens;
     vm.thisClientID = thisClientID;
@@ -363,7 +361,7 @@ function onDataRecieved(data, unique, thisClientID, tokens) {
     }
 
     if (decoded.getType() == ENUM.MessageType.SN_PUBLISH) {
-        var id = decoded.getPacketID();
+        var id = decoded.getPacketID();      
         var publishTopic = decoded.getTopic().getTopic();
         var publishQos = decoded.getTopic().getQos();
         var publishContent = decoded.getContent().toString('utf8');
@@ -440,8 +438,6 @@ function connectionDone(packetID, parentEvent) {
 }
 
 function saveMessage(msg) {
-    console.log('SAVE MESSAGE')
-    console.log(msg)
     try{
         var message = {
             type: 'snmessage',
@@ -598,10 +594,9 @@ function processPublishin(data) {
     }
 }
 
-function processPubackout(data, msg) {
+function processPubackout(data, msg) {    
     if (!data) return;
     sendData(data, msg.packetID, 'snpubackout');
-    var id = this.id;
     db.loadDatabase();
     db.find({
         'subscribtion.topicID': parseInt(msg.topic)

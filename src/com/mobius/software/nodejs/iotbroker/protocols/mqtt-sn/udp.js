@@ -33,6 +33,7 @@ var numCPUs = args[0] || require('os').cpus().length;
 var parser = require('./SNParser');
 var dtls = require('nodejs-dtls');
 var dns = require('dns');
+var forge = require('node-forge');
 var TOKENS = require('./lib/Tokens');
 var TIMERS = require('./lib/Timers');
 var Timer = require('./lib/Timer');
@@ -53,7 +54,7 @@ if (cluster.isMaster) {
 } else {
     setTimeout(function () {
 
-        bus.listen('udp.newSocket', function (msg) {
+        bus.listen('udp.newSocket', function (msg) {           
             unique = msg.params.connection.unique;
               
             bus.listen('udp.senddata' + unique, function (msg) { sendData(msg); });
@@ -61,11 +62,6 @@ if (cluster.isMaster) {
 
             createSocket(msg);
         })
-
-       
-
-
-
     }, 100 * (cluster.worker.id + 4));
 }
 
@@ -102,25 +98,37 @@ function createSocket(msg) {
         udp = dgram.createSocket('udp4');
     }
 
-    if (vm.secure) {
+    if (vm.secure) {          
         var certificate = null;
         var privateKey = null;
         if (msg.params.connection.certificate) {
             certificate = '';
             privateKey = '';
             var arr = [];
+            var arrStr = [];
             arr = msg.params.connection.certificate.split('-----BEGIN CERTIFICATE-----');
             arr.forEach(function (str, index) {
-                if (str.indexOf('-----END CERTIFICATE-----') !== -1) {
-                    certificate += '-----BEGIN CERTIFICATE-----' + str;
-                } else {
-                    privateKey += str
-                }
+                arrStr = str.split('-----END CERTIFICATE-----')
+                if(arrStr[0]) {
+                    certificate += '-----BEGIN CERTIFICATE-----' + arrStr[0] + '-----END CERTIFICATE-----';
+                    if(index != arr.length-1) {
+                        certificate += '\n'
+                    }
+                } if(arrStr[1]) {
+                    privateKey += arrStr[1]
+                }   
             })
             certificate = certificate.replace(/(?:\n)/g, '\r\n');
-            certificate = Buffer.from(certificate, 'utf8'),
+            certificate = Buffer.from(certificate, 'utf8');
+            if(msg.params.connection.privateKey) {
+                var pki = forge.pki;
+                var privateKeyPki = pki.decryptRsaPrivateKey(privateKey, msg.params.connection.privateKey);
+                var pem = pki.privateKeyToPem(privateKeyPki);
+                privateKey = Buffer.from(pem, 'utf8') 
+            } else {
                 privateKey = Buffer.from(privateKey, 'utf8')
-        }
+            }
+        }        
         dns.lookup(vm.host, function (err, address, family) {
             var options = {
                 socket: udp,
@@ -129,8 +137,17 @@ function createSocket(msg) {
                 certificate: certificate,
                 certificatePrivateKey: privateKey,
             }
-            try {
+            try { 
                 udp = dtls.connect(options);
+                if (typeof oldUnique == 'undefined') {
+                    udp.on('data', function onDataReceived(data) {
+                        bus.send('sn.datareceived' + unique, {
+                            payload: data,
+                            clientID: vm.clientID,
+                            unique: vm.unique
+                        });
+                    })
+                    }
             } catch (e) {
                 console.log(e)
             }
@@ -142,15 +159,7 @@ function createSocket(msg) {
     udp.connection = msg.params.connection;
 
     if (typeof oldUnique == 'undefined') {
-        if (vm.secure) {
-            udp.on('data', function onDataReceived(data) {
-                bus.send('sn.datareceived' + unique, {
-                    payload: data,
-                    clientID: vm.clientID,
-                    unique: vm.unique
-                });
-            })
-        } else {
+        if (!vm.secure) {
             udp.on('message', function onDataReceived(data, rinfo) {
                 bus.send('sn.datareceived' + unique, {
                     payload: data,
@@ -209,7 +218,7 @@ function sendData(msg) {
 
                     var message = Buffer.from(msg.payload)
                     if (vm.secure) {
-                        udp.write(message)
+                        udp.write(message);
                     } else {
                         udp.send(message, vm.port, vm.host, function (err) {
                         });
@@ -242,7 +251,7 @@ function sendData(msg) {
     }
     try {
         if (vm.secure) {
-            udp.write(Buffer.from(msg.payload))
+            udp.write(Buffer.from(msg.payload));
         } else {
             udp.send(Buffer.from(msg.payload), vm.port, vm.host, function (err) {
             });

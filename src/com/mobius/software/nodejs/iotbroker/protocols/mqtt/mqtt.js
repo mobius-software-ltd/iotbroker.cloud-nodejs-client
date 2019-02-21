@@ -119,45 +119,48 @@ function disconnect(params) {
 
 function subscribe(params) {
     var topics = [];
+    var token = tokens[unique].getToken();
     for (var i = 0; i < params.topics.length; i++) {
         topics.push(Topic(params.topics[i].topic, params.topics[i].qos));
     }
-    var subscribe = Subscribe(params.token, topics);
+    var subscribe = Subscribe(token, topics);
 
     try {
         var encSubscribe = parser.encode(subscribe);
     } catch (e) {
         console.log('Parser can`t encode provided params.');
     }
-    subscribtions.pushMessage(params.token, params)
-    sendData(encSubscribe, params.token, 'mqttSubscribe');   
+    subscribtions.pushMessage(token, params)
+    sendData(encSubscribe, token, 'mqttSubscribe');   
 }
 
 function unsubscribe(params) {
     var topics = params || [];
-    var unsubscribe = Unsubscribe(params.token, topics);
+    var token = tokens[unique].getToken();
+    var unsubscribe = Unsubscribe(token, topics);
 
     try {
         var encUnsubscribe = parser.encode(unsubscribe);
     } catch (e) {
         console.log('Parser can`t encode provided params.');
     }
-    unsubscribtions.pushMessage(params.token, topics);
-    sendData(data, packetID, 'mqttUnsubscribe');  
+    unsubscribtions.pushMessage(token, topics);
+    sendData(encUnsubscribe, token, 'mqttUnsubscribe');  
 }
 
 function publish(params) {
-    if (params.qos == 0) {
-        params.token = null;
+    var token = null;
+    if (params.qos != 0) {
+        token = tokens[unique].getToken();
     }
     try {
-        var publish = Publish(params.token, Topic(Text(params.topic), params.qos), new Buffer.from(params.content), params.retain, params.isDupe);
+        var publish = Publish(token, Topic(Text(params.topic), params.qos), new Buffer.from(params.content), params.retain, params.isDupe);
         var encPublish = parser.encode(publish);
     } catch (error) {
         console.log('Parser can`t encode provided params.');
     }
-    messages.pushMessage(params.token, params);
-    processPublish(encPublish, params, params.token)
+    messages.pushMessage(token, params);
+    processPublish(encPublish, params, token)
 }
 
 function connect(params) {
@@ -235,7 +238,6 @@ function onDataRecieved(data) {
     if (decoded.getType() == ENUM.MessageType.SUBACK) {
         var id = decoded.getPacketID();
         var codes = decoded.getReturnCodes();
-        console.log("Suback received!.");
         processSuback( decoded, subscribtions.pullMessage(id))
     }
 
@@ -314,8 +316,7 @@ function connectionDone(packetID, parentEvent) {
     });
 }
 
-function saveMessage(msg) {
-    console.log(msg)
+function saveMessage(msg) {    
     var message = {
         type: 'message',
         message: {
@@ -394,7 +395,7 @@ function processPublish(data, msg, packetID) {
 }
 
 function processPuback(data, msg) {
-    connectionDone(data.getPacketID(), 'mqttPuback'); 
+    connectionDone(data.getPacketID(), 'mqttPuback');   
         tokens[unique].releaseToken(data.getPacketID());
         msg.direction = 'out';
         saveMessage(msg);

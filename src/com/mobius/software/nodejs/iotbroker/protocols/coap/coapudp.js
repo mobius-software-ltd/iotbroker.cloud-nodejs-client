@@ -28,6 +28,7 @@ var cluster = require('cluster');
 var dgram = require('dgram');
 var udp = dgram.createSocket('udp4');
 var dtls = require('nodejs-dtls');
+var forge = require('node-forge');
 var dns = require('dns');
 var numCPUs = args[0] || require('os').cpus().length;
 var parser = require('./COAPParser');
@@ -109,17 +110,29 @@ function createSocket(msg) {
             certificate = '';
             privateKey = '';
             var arr = [];
+            var arrStr = [];
             arr = msg.params.connection.certificate.split('-----BEGIN CERTIFICATE-----');
             arr.forEach(function (str, index) {
-                if (str.indexOf('-----END CERTIFICATE-----') !== -1) {
-                    certificate += '-----BEGIN CERTIFICATE-----' + str;
-                } else {
-                    privateKey += str
-                }
+                arrStr = str.split('-----END CERTIFICATE-----')
+                if(arrStr[0]) {
+                    certificate += '-----BEGIN CERTIFICATE-----' + arrStr[0] + '-----END CERTIFICATE-----';
+                    if(index != arr.length-1) {
+                        certificate += '\n'
+                    }
+                } if(arrStr[1]) {
+                    privateKey += arrStr[1]
+                }  
             })
             certificate = certificate.replace(/(?:\n)/g, '\r\n');
-            certificate = Buffer.from(certificate, 'utf8'),
-            privateKey = Buffer.from(privateKey, 'utf8')
+            certificate = Buffer.from(certificate, 'utf8');
+            if(msg.params.connection.privateKey) {
+                var pki = forge.pki;
+                var privateKeyPki = pki.decryptRsaPrivateKey(privateKey, msg.params.connection.privateKey);
+                var pem = pki.privateKeyToPem(privateKeyPki);
+                privateKey = Buffer.from(pem, 'utf8') 
+            } else {
+                privateKey = Buffer.from(privateKey, 'utf8')
+            }
         }
         dns.lookup(vm.host, function (err, address, family) {
             var options = {
@@ -132,6 +145,16 @@ function createSocket(msg) {
             }
             try {
                 udp = dtls.connect(options);
+                if (typeof oldUniqueCoap == 'undefined') {
+                    udp.on('data', function onDataReceived(data) {
+                        bus.send('coap.datareceived' + unique, {
+                            payload: data,
+                            clientID: vm.clientID,
+                            unique: vm.unique
+                        });
+
+                    })
+                }
             } catch (e) {
                 console.log(e)
             }
@@ -150,15 +173,7 @@ function createSocket(msg) {
     }
 
     if (typeof oldUniqueCoap == 'undefined') {
-        if (vm.secure) {
-            udp.on('data', function onDataReceived(data) {
-                bus.send('coap.datareceived' + unique, {
-                    payload: data,
-                    clientID: vm.clientID,
-                    unique: vm.unique
-                });
-            })
-        } else {
+        if (!vm.secure) {
             udp.on('message', function onDataReceived(data, rinfo) {
                 bus.send('coap.datareceived' + unique, {
                     payload: data,

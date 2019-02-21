@@ -62,7 +62,7 @@ if (cluster.isMaster) {
 
 function createSocket(msg) {    
     try {
-        if (msg.params.connection.secure) {
+        if (msg.params.connection.secure) {            
             if (msg.params.connection.certificate) {
                 const options = {
                     key: msg.params.connection.certificate,

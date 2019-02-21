@@ -46,7 +46,6 @@ var timers = {};
 var tokens = {};
 var db = new Datastore({ filename: 'data' });
 var CLIENT = {};
-var tokens = {};
 var pingTimeout = {};
 var unique;
 var username;
@@ -117,22 +116,18 @@ function disconnectProcess(msg) {
 
 function publishProcess(msg) {
     if (typeof CLIENT[msg.unique] == 'undefined') return;
-    if (msg.params.qos != 0)
-        msg.params.token = tokens[msg.unique].getToken();
-
+  
     CLIENT[msg.unique].id = msg.username;
     CLIENT[msg.unique].Publish(msg.params);
 }
 
 function  subscribeProcess(msg) {
     if (typeof CLIENT[msg.unique] == 'undefined') return;
-    msg.params.token = tokens[msg.unique].getToken();
     CLIENT[msg.unique].Subscribe(msg.params);
 }     
 
 function unsubscribeProcess(msg) {
     if (typeof CLIENT[msg.unique] == 'undefined') return;
-    msg.params.token = tokens[msg.unique].getToken();
     CLIENT[msg.unique].Unsubscribe(msg.params);
 }
 

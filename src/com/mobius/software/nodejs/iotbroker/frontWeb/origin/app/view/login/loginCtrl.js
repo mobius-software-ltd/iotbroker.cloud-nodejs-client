@@ -26,8 +26,8 @@
         };
         vm.connect = connect;
 
-        init();
-       
+        init();  
+           
         function connect() {
             // vm.login(vm.login);
            
