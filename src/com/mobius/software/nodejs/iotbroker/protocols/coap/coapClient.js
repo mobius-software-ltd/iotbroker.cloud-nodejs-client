@@ -169,7 +169,7 @@ function processPublish(msg) {
 function processDisconnect(msg) {
     if (typeof CLIENT[msg.unique] == 'undefined') return;
     db.loadDatabase();
-    db.remove({ 'type': 'connection', 'connection.username': msg.clientID }, { multi: true });
+    db.remove({ 'type': 'connection', 'connection.clientID': msg.clientID }, { multi: true });
     connectionDone(null, 'coap.disconnect');    
 }
 

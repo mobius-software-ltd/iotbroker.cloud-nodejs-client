@@ -125,7 +125,7 @@ function createSocket(msg) {
             })
             certificate = certificate.replace(/(?:\n)/g, '\r\n');
             certificate = Buffer.from(certificate, 'utf8');
-            if(msg.params.connection.privateKey) {
+            if(msg.params.connection.privateKey && msg.params.connection.certificate.indexOf('ENCRYPTED') != -1) {
                 var pki = forge.pki;
                 var privateKeyPki = pki.decryptRsaPrivateKey(privateKey, msg.params.connection.privateKey);
                 var pem = pki.privateKeyToPem(privateKeyPki);
@@ -180,7 +180,7 @@ function createSocket(msg) {
                     clientID: vm.clientID,
                     unique: vm.unique
                 });
-            });
+            });           
         }
     }
 
@@ -207,17 +207,7 @@ function sendData(msg) {
                         });
                     }
                 } catch (e) {
-                    console.log('Unable to establish connection to the server. Error: ', e);
-                    if (typeof timers[msg.unique] != 'undefined') {
-                        timers[msg.unique].releaseTimer(msg.packetID);
-                        delete timers[msg.unique];
-                    }
-                    if (typeof connections[msg.unique] != 'undefined') {
-                        connections[msg.unique].end();
-                        delete connections[msg.unique];
-                    }
-                    if (typeof connectionParams[msg.unique] != 'undefined')
-                        delete connectionParams[msg.unique];
+                    socketEndOnError(e, msg.unique, msg.packetID);                    
                     return;
                 }
             },
@@ -240,7 +230,8 @@ function sendData(msg) {
         }
 
     } catch (e) {
-        console.log('Unable to establish connection to the server. Error: ', e);
+        socketEndOnError(e, msg.unique, msg.packetID);                    
+        return;
 
     }
 }
@@ -258,4 +249,18 @@ function connectionDone(msg) {
                 delete connections[msg.unique];
                 delete connectionParams[msg.unique];
             }
+}
+
+function socketEndOnError(e, unique, packetID) {
+    console.log('Unable to establish connection to the server. Error: ', e);
+    if (typeof timers[unique] != 'undefined') {
+        timers[unique].releaseTimer(packetID);
+        delete timers[unique];
+    }
+    if (typeof connections[unique] != 'undefined') {
+        connections[unique].end();
+        delete connections[unique];
+    }
+    if (typeof connectionParams[unique] != 'undefined')
+        delete connectionParams[unique];
 }

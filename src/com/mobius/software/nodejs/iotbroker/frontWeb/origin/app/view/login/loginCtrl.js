@@ -10,6 +10,8 @@
     function loginCtrl(dataFactory, sessionFactory) {
         var vm = this;
         vm.protocolType = null;
+        vm.userslist = [];
+        vm.removeUserFromList = removeUserFromList;
         vm.types = [{name: "MQTT", id: 1},
                     {name: "SN", id: 2},
                     {name: "COAP", id: 3},
@@ -27,23 +29,40 @@
         vm.connect = connect;
 
         init();  
-           
-        function connect() {
-            // vm.login(vm.login);
-           
-            for (var i=0; i<vm.types.length; i++) {
-                if(vm.protocolType == vm.types[i].id) {                   
-                    vm.protocolType = vm.types[i];
-                    // if(vm.types[i].id == 2 ){
-                    //     vm.protocolType.name = 'SN';
-                    // }
+        vm.login = {
+            certificate: null,
+            clientID: "123",
+            host: "broker.iotbroker.cloud",
+            isClean: false,
+            keepalive: "10",
+            password: "galina1988",
+            port: "1883",
+            privateKey: null,
+            type: {name: "MQTT", id: 1, $$hashKey: "object:5"},
+            username: "yulian.oifa@mobius-software.com"
+           }
+
+        function connect(user) {
+            for(var i = 0; i < vm.types.length; i++) {
+                if(vm.protocolType == vm.types[i].id) {
+                    user.type = vm.types[i];
                 }
             }
-            vm.login.unique = vm.login.clientID + Math.random().toString(18).substr(2, 16);
-            vm.login.type = vm.protocolType;    
-            dataFactory.connect(vm.login);
+            if(!user.unique) user.unique = user.clientID + Math.random().toString(18).substr(2, 16);            
+            dataFactory.connect(user);
+        }
+        getUserslist()
+
+       function getUserslist() {
+        vm.userslist = sessionFactory.getUsersListFromStorage();        
+        if(!vm.userslist.length)
+            $("#userslist").modal('hide');
         }
 
+        function removeUserFromList(unique) {
+            sessionFactory.removeUserFromStorage(unique);
+            getUserslist();
+        }
         function init() {}
 
     }

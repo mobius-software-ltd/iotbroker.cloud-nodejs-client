@@ -66,7 +66,7 @@ if (cluster.isMaster) {
         console.log('app is running on port 8888');
     });
 
-    app.post('/connect', function onConnect(req, res) {    
+    app.post('/connect', function onConnect(req, res) {
         var Datastore = require('nedb');
         var dbUsers = new Datastore({ filename: 'users' });
         var currClient = req.body.type;
@@ -103,6 +103,10 @@ if (cluster.isMaster) {
         }
         if (!req.body.keepalive && (req.body.type.id == 1 || req.body.type.id == 2 || req.body.type.id == 5)) {
             res.status(400).send('Invalid request! Parameter "keepalive" mismatch.');
+            return;
+        }
+        if(req.body.secure && req.body.certificate.indexOf('ENCRYPTED') != -1 && !req.body.privateKey) {           
+            res.status(400).send('Invalid request! Add "password" to your certificate');
             return;
         }
         try {

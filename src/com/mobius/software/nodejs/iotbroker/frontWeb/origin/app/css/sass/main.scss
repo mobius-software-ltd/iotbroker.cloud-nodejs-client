@@ -166,7 +166,7 @@ input:checked+.slider:before {
         }
     }
     &-subtitle {
-        color: white
+        color: white      
     }
     &-row {
         // height: 70px;
@@ -333,6 +333,51 @@ input:checked+.slider:before {
 .iotBtn {
     background-color: $colorBlue;
     color: #fff;
+    &-rounded {
+        border-radius: 50%;
+        padding: 6px;
+        width: 50px;
+        height: 50px;
+        margin-top: 7px;
+    }
+    &-rounded:hover {
+        background: #18a3dc
+    }
+    
+}
+#userslist {   
+    .modal-body {
+        max-height: 600px;
+        overflow: scroll;
+    }
+    .modal-header {
+        background-color: #18a3dc;
+        color: #fff;
+        text-align: center;
+    }
+    .users-item {
+      
+       border-bottom: 1px solid #e5e5e5;
+       padding: 10px;
+       cursor: pointer;
+        h4 {
+            margin: 0;
+            font-weight: bold;
+        }
+        span {
+            font-size: 14px;
+        }
+    }
+}
+
+.login-subtitle {
+    .iotBtn {
+        font-weight: bold;
+    }
+ .iotBtn:hover {
+    background: #18a3dc;
+    color: #fff;
+ }
 }
 
 .listMessages h1 {

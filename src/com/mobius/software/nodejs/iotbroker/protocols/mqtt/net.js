@@ -75,7 +75,8 @@ function createSocket(msg) {
             }
         } else {
              socket = net.createConnection(msg.params.connection.port, msg.params.connection.host);
-        }
+          
+            }
 
         var oldUserName = socket.username;
         socket.username = msg.params.connection.username;
@@ -89,19 +90,13 @@ function createSocket(msg) {
                     unique: socket.unique
                 });
             });
+            socket.on('error', function(e) {
+                socketEndOnError(e, msg.params.connection.unique, msg.packetID);
+               return;
+            })
         }
     } catch (e) {
-        console.log('Unable to establish connection to the server. Error: ', e);
-        if (typeof timers[msg.params.connection.unique] != 'undefined') {
-            timers[msg.params.connection.unique].releaseTimer(msg.packetID);
-            delete timers[msg.params.connection.unique];
-        }
-        if (typeof connections[msg.params.connection.unique] != 'undefined') {
-            connections[msg.params.connection.unique].end();
-            delete connections[msg.params.connection.unique];
-        }
-        if (typeof connectionParams[msg.params.connection.unique] != 'undefined')
-            delete connectionParams[msg.params.connection.unique];
+        socketEndOnError(e, msg.params.connection.unique, msg.packetID);       
         return;
     }
     connectionParams[msg.params.connection.unique] = msg;
@@ -119,17 +114,7 @@ function sendData(msg) {
                     if(connections[msg.unique])
                     connections[msg.unique].write(Buffer.from(msg.payload));
                 } catch (e) {
-                    console.log('Unable to establish connection to the server. Error: ', e);
-                    if (typeof timers[msg.unique] != 'undefined') {
-                        timers[msg.unique].releaseTimer(msg.packetID);
-                        delete timers[msg.unique];
-                    }
-                    if (typeof connections[msg.unique] != 'undefined') {
-                        connections[msg.unique].end();
-                        delete connections[msg.unique];
-                    }
-                    if (typeof connectionParams[msg.unique] != 'undefined')
-                        delete connectionParams[msg.unique];
+                    socketEndOnError(e, msg.unique, msg.packetID);                   
                     return;
                 }
             },
@@ -141,17 +126,7 @@ function sendData(msg) {
         if(connections[msg.unique])
         connections[msg.unique].write(Buffer.from(msg.payload));
     } catch (e) {
-        console.log('Unable to establish connection to the server. Error: ', e);
-        if (typeof timers[msg.unique] != 'undefined') {
-            timers[msg.unique].releaseTimer(msg.packetID);
-            delete timers[msg.unique];
-        }
-        if (typeof connections[msg.unique] != 'undefined') {
-            connections[msg.unique].end();
-            delete connections[msg.unique];
-        }
-        if (typeof connectionParams[msg.unique] != 'undefined')
-            delete connectionParams[msg.unique];
+        socketEndOnError(e, msg.unique, msg.packetID);
         return;
     }
     // connections[msg.unique].write(Buffer.from(msg.payload));
@@ -168,4 +143,18 @@ function connectionDone(msg) {
         delete connectionParams[msg.unique];
     }
 
+}
+
+function socketEndOnError(e, unique, packetID) {
+    console.log('Unable to establish connection to the server. Error: ', e);
+    if (typeof timers[unique] != 'undefined') {
+        timers[unique].releaseTimer(packetID);
+        delete timers[unique];
+    }
+    if (typeof connections[unique] != 'undefined') {
+        connections[unique].end();
+        delete connections[unique];
+    }
+    if (typeof connectionParams[unique] != 'undefined')
+        delete connectionParams[unique];
 }
