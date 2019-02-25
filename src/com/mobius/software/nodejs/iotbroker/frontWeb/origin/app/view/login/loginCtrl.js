@@ -55,7 +55,7 @@
 
        function getUserslist() {
         vm.userslist = sessionFactory.getUsersListFromStorage();        
-        if(!vm.userslist.length)
+        if(!vm.userslist || !vm.userslist.length)
             $("#userslist").modal('hide');
         }
 
