@@ -29,7 +29,6 @@ var Timers = function Timers() {
 
     this.setTimer = function(i, timer) {
         timers[i] = timer;
-        console.log('index set:', i);
     };
 };
 

@@ -10,8 +10,7 @@
     function loginCtrl(dataFactory, sessionFactory) {
         var vm = this;
         vm.protocolType = null;
-        vm.userslist = [];
-        vm.removeUserFromList = removeUserFromList;
+      
         vm.types = [{name: "MQTT", id: 1},
                     {name: "SN", id: 2},
                     {name: "COAP", id: 3},
@@ -48,21 +47,10 @@
                     user.type = vm.types[i];
                 }
             }
-            if(!user.unique) user.unique = user.clientID + Math.random().toString(18).substr(2, 16);            
+            user.unique = user.clientID + Math.random().toString(18).substr(2, 16);            
             dataFactory.connect(user);
         }
-        getUserslist()
-
-       function getUserslist() {
-        vm.userslist = sessionFactory.getUsersListFromStorage();        
-        if(!vm.userslist || !vm.userslist.length)
-            $("#userslist").modal('hide');
-        }
-
-        function removeUserFromList(unique) {
-            sessionFactory.removeUserFromStorage(unique);
-            getUserslist();
-        }
+       
         function init() {}
 
     }

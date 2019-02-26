@@ -31,11 +31,6 @@ function SNsubscribe(newPacketID, newTopic, newDup) {
         if (Array.isArray(newTopic[0]))  
            topic = newTopic[0];
     }
-    // if (newTopic.length == 2) {
-    //     packetID = newTopic[0];
-    //     topic = newTopic[1];
-    //     console.log('111')
-    // }
 
     return {
         reInit: function(newPacketID, newTopic, newDup) {

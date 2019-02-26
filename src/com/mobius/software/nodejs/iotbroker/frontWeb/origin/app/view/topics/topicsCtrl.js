@@ -37,7 +37,6 @@
         }
 
         function deleteItem(params) {
-            // console.log(params.item);
             if (typeof params.item == 'undefined') return;
             dataFactory.unsubscribe({
                 topics: [params.item.topic],
@@ -49,14 +48,12 @@
             }).then(function(data) {
                 setTimeout(function() {
                     getTopics();
-                    // console.log(vm.topics);
                 }, 2000);
                 document.body.click();
             });
         }
 
         function addItem() {
-            // console.log(vm.newItem);
             if ((typeof vm.newItem.qos == 'undefined' && vm.sessionData.type.id != 3 && vm.sessionData.type.id != 4) || typeof vm.newItem.topic == 'undefined') return;
             dataFactory.subscribe({
                 topics: [vm.newItem],

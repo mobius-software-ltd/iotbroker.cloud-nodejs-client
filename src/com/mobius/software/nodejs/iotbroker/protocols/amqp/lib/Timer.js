@@ -43,7 +43,6 @@ function Timer(params) {
 
     function stopTimer() {
         Timers.clearInterval(timer);
-        // console.log('timer stopped');
     }
 }
 

@@ -11,7 +11,9 @@
             API_SUBSCRIBE_URL: '/subscribe',
             API_UNSUBSCRIBE_URL: '/unsubscribe',
             API_MESSAGES_URL: '/getmessages',
-            API_TOPICS_URL: '/gettopics'
+            API_TOPICS_URL: '/gettopics',
+            API_USERS_LIST_URL: '/users',
+            API_USERS_REMOVE_URL: '/users/remove'
         });
 
 }());

@@ -23,7 +23,6 @@ var ENUM = require('./enum');
 
 
 function Connect(options) {
-    // console.log(arguments[0]);
 
     var username;
     var password;
@@ -67,7 +66,6 @@ function Connect(options) {
             return ENUM.MessageType.CONNECT;
         },
         processBy: function(device) {
-            // console.log(username.length);
             device.processConnect({
                 cleanSession: cleanSession,
                 keepalive: keepalive,
@@ -78,7 +76,6 @@ function Connect(options) {
             var length = 10;
             length += clientID.length + 2;
             length += this.isWillFlag() ? will.retrieveLength() : 0;
-            // console.log(will);
             length += username != null ? username.length + 2 : 0;
             length += password != null ? password.length + 2 : 0;
             return length;

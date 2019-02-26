@@ -48,10 +48,6 @@ function LengthDetails(newLength, newSize) {
                 if (multiplier > 128 * 128 * 128)
                     throw new Error("Method decode(buf) in LengthDetails class throwed error: Encoded length exceeds maximum of 268435455 bytes");
 
-                // if (!buf.isReadable())
-                //     return new LengthDetails(0, 0);
-
-                // console.log(bytesUsed);
                 enc = newBuffer.buf.readUInt8(index);
                 index++;
                 length += (enc & 0x7f) * multiplier;

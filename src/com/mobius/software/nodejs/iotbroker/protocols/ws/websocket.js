@@ -106,7 +106,6 @@ function createSocket(msg) {
                         parentEvent: 'wsDisconnect',
                         unique: socket.unique
                     });
-                    console.log('echo-protocol Connection Closed');
                 });
 
                 connection.on('message', function (data) {

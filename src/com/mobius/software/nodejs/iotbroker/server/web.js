@@ -34,6 +34,9 @@ var amqpClient = require('../protocols/amqp/amqpClient')
 var guid = require('../protocols/mqtt/lib/guid');
 var cluster = require('cluster');
 var numCPUs = require('os').cpus().length;
+var users = require('./routes/users');
+var Datastore = require('nedb');
+var db = new Datastore({ filename: 'userData' });
 
 app.use(bodyParser.json());
 app.use(cors());
@@ -66,16 +69,16 @@ if (cluster.isMaster) {
         console.log('app is running on port 8888');
     });
 
+    app.use('/users', users);
+
     app.post('/connect', function onConnect(req, res) {
-        var Datastore = require('nedb');
-        var dbUsers = new Datastore({ filename: 'users' });
+              
+        db.loadDatabase();
+        db.remove({'clientID': req.body.clientID, 'type.name': req.body.type.name }, { multi: true })
+        db.insert(req.body);
+
         var currClient = req.body.type;
         currClient.name = currClient.name.toLowerCase();
-        //VALIDATION
-        // if (!req.body.host || !/^(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/.test(req.body.host)) {
-        //     res.status(400).send('Invalid request! Parameter "host" mismatch.');
-        //     return;
-        // }
         if (!req.body.host) {
             res.status(400).send('Invalid request! Parameter "host" mismatch.');
             return;
@@ -615,5 +618,5 @@ if (cluster.isMaster) {
             }, res);
         }
 
-    });
+    });    
 }

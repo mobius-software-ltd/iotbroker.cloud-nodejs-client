@@ -345,24 +345,43 @@ input:checked+.slider:before {
     }
     
 }
-#userslist {   
-    .modal-body {
-        max-height: 600px;
-        overflow: scroll;
+#userslist {  
+    .login {
+        &-title {
+        margin: 0;
+        h1 {
+            font-size: 26px;
+            margin-bottom: 0;
+        }
     }
-    .modal-header {
-        background-color: #18a3dc;
-        color: #fff;
-        text-align: center;
-    }
+        &-formElements {
+            padding: 0;
+            min-height: 200px;
+            height: calc(100vh - 96px - 82px)
+        }
+        &-button {
+            background-color: #0094d2;
+            
+        }
+        &-button:hover {
+            background-color: lightskyblue;
+        }
+        &-formElements img {
+            margin-right: 0;
+        }
+        &-row {
+            border: none;
+        }
+    } 
+
     .users-item {
-      
-       border-bottom: 1px solid #e5e5e5;
-       padding: 10px;
+       padding: 10px;       
        cursor: pointer;
+        border-bottom: 2px solid lightgrey;
         h4 {
             margin: 0;
             font-weight: bold;
+            text-transform: uppercase;
         }
         span {
             font-size: 14px;

@@ -12,7 +12,6 @@
         var sessionData = {};
         vm.exit = exit;
         $scope.route = $location.$$url;
-        // console.log(vm.route);
 
         function exit() {
             var user = sessionFactory.getSessionData();
@@ -23,7 +22,7 @@
         init();
 
         function init() {
-            sessionData = sessionFactory.getSessionData();
+           // sessionData = sessionFactory.getSessionData();
         }
         
     }

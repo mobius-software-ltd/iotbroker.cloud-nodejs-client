@@ -255,9 +255,7 @@ function onDataRecieved(data, unique, thisClientID, tokens) {
     vm.thisClientID = thisClientID;
     var that = this;
     var decoded = {};
-    console.log("Data received, : ", data);
-    console.log("Data type decoded", ENUM.getKeyByValue(ENUM.MessageType, (parser.decode(data)).getType()));
-
+  
     try {
         decoded = parser.decode(data);
     } catch (error) {
@@ -365,10 +363,6 @@ function onDataRecieved(data, unique, thisClientID, tokens) {
         var publishTopic = decoded.getTopic().getTopic();
         var publishQos = decoded.getTopic().getQos();
         var publishContent = decoded.getContent().toString('utf8');
-        console.log("Publish received!. id:", id);
-        console.log("Publish qos:", publishQos);
-        console.log("Publish topic:", publishTopic);
-        console.log("Publish content:", publishContent);
         var message = {
             packetID: id,
             topic: publishTopic,

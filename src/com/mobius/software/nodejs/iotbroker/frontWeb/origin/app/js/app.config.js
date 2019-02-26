@@ -17,6 +17,10 @@
 
         $routeProvider
             .when('/', {
+                templateUrl: 'view/users/users.html',
+                controller: 'usersCtrl as Ctrl',
+            })
+            .when('/login', {
                 templateUrl: 'view/login/login.html',
                 controller: 'loginCtrl as Ctrl',
                 // resolve: {
@@ -46,7 +50,7 @@
             .when('/messages', {
                 templateUrl: 'view/messages/messages.html',
                 controller: 'messagesCtrl as Ctrl',
-            })
+            })            
             .otherwise('/');
     }
 

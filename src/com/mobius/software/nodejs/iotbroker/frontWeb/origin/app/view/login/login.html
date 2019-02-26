@@ -3,10 +3,7 @@
         <h1>Log In</h1>       
     </div>
     <form action="" class="login-form" name="connect">
-        <h2 class="login-subtitle">Registration info
-            <button ng-if="Ctrl.userslist.length" data-toggle="modal" data-target="#userslist" type="button" class="btn iotBtn pull-right" class="close">List</button>
-
-        </h2>
+        <h2 class="login-subtitle">Registration info</h2>
         <div class="login-row form-group-lg">
             <div class="login-formElements clearfix">
                 <label for="" class="col-xs-6">
@@ -219,40 +216,6 @@
             <div class="modal-footer">
                 <button type="button" class="btn iotBtn" class="close" data-dismiss="modal" data-dismiss="modal">Ok</button>
 
-            </div>
-
-        </div>
-    </div>
-</div>
-
-<div class="modal fade" id="userslist" tabindex="-1" role="dialog" aria-labelledby="myModalLabel">
-    <div class="modal-dialog" role="document">
-        <div class="modal-content">
-            <div class="modal-header">
-                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                    <span aria-hidden="true">&times;</span>
-                </button>
-                <h4 class="modal-title" id="myModalLabel">Please select account</h4>
-            </div>
-            <div class="modal-body">
-                <div class="users-item clearfix" ng-repeat="item in Ctrl.userslist">
-                    <div class="pull-left" data-dismiss="modal" ng-click="Ctrl.connect(item)">
-                            <h4>{{item.type.name}}</h4>
-                            <span>{{item.clientID}}</span><br>
-                            <span>{{item.host}}:{{item.port}}</span>
-                    </div>
-                    <div class="pull-right">
-                        <button type="button" ng-click="Ctrl.removeUserFromList(item.unique)" class="btn iotBtn iotBtn-rounded ">
-                            <img ng-src="img/delete_topic_icon.png">
-                        </button>
-                    </div>
-                    </div>
-                   
-                        
-                </ul>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn iotBtn" class="close" data-dismiss="modal">Close</button>
             </div>
 
         </div>

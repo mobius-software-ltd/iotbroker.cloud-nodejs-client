@@ -1,4 +1,4 @@
-(function() {
+(function () {
     'use strict';
 
     dataFactory.$inject = ["$http", "mqttConstants", "$location", "toastr", "$q", "sessionFactory", "$rootScope"];
@@ -16,12 +16,14 @@
             getTopics: getTopics,
             subscribe: subscribe,
             unsubscribe: unsubscribe,
-            disconnect: disconnect
+            disconnect: disconnect,
+            getUsers: getUsers,
+            removeUser: removeUser
         }
 
         function connect(customer) {
             $http.post(mqttConstants.API_SERVER_URL + mqttConstants.API_CONNECT_URL, customer)
-                .then(function(data) {
+                .then(function (data) {
                     if (data.data.length < 1 && customer.type.id != 3) {
                         toastr.error('Login failed!');
                         return;
@@ -29,29 +31,28 @@
                     $location.path('/topics');
                     sessionFactory.setSessionData(customer);
                     toastr.success('Successfully logged in!', data);
-                }, function(data) {
+                }, function (data) {
                     toastr.error(data.data, 'Oops some error here!');
 
                 })
-                .catch(function(error) {
+                .catch(function (error) {
 
                 });
         }
 
         function disconnect(params) {
-            var session = angular.fromJson(sessionStorage.getItem('mqttSession'));
-            console.log(params)
-            
+            var session = angular.fromJson(sessionStorage.getItem('mqttSession'));          
+
             $http.post(mqttConstants.API_SERVER_URL + mqttConstants.API_DISCONNECT_URL, params)
-                .then(function(data) {
+                .then(function (data) {
                     $location.path('/');
                     toastr.success('Successfully logged out!', data);
                     $rootScope.auth = false;
-                }, function(data) {
+                }, function (data) {
                     toastr.error(data.data, 'Oops some error here!');
 
                 })
-                .catch(function(error) {
+                .catch(function (error) {
                     console.log(error);
                 });
         }
@@ -63,16 +64,13 @@
             var def = $q.defer();
 
             $http.post(mqttConstants.API_SERVER_URL + mqttConstants.API_MESSAGES_URL, params)
-                .then(function(data) {
-                    // console.log(data);
+                .then(function (data) {
                     def.resolve(data);
-                    // toastr.success('Successfully logged in!', data);
-                }, function(data) {
-                    // console.log(data);
+                }, function (data) {
                     toastr.error(data.data, 'Oops some error in getting messages!');
 
                 })
-                .catch(function(error) {
+                .catch(function (error) {
 
                 });
             return def.promise;
@@ -80,16 +78,13 @@
 
         function publish(params) {
             $http.post(mqttConstants.API_SERVER_URL + mqttConstants.API_PUBLISH_URL, params)
-                .then(function(data) {
-                    // $location.path('/topics');
-                    // console.log(data);
+                .then(function (data) {
                     toastr.success('Successfully published!', data);
-                }, function(data) {
-                    // console.log(data);
+                }, function (data) {
                     toastr.error(data.data, 'Oops some error here!');
 
                 })
-                .catch(function(error) {
+                .catch(function (error) {
 
                 });
         }
@@ -97,14 +92,14 @@
         function getTopics(params) {
             var def = $q.defer();
             $http.post(mqttConstants.API_SERVER_URL + mqttConstants.API_TOPICS_URL, params)
-                .then(function(data) {
+                .then(function (data) {
                     def.resolve(data);
-                }, function(data) {
+                }, function (data) {
                     console.log(data);
                     toastr.error(data.data, 'Oops some error here!');
 
                 })
-                .catch(function(error) {
+                .catch(function (error) {
 
                 });
 
@@ -114,12 +109,11 @@
         function subscribe(params) {
             var def = $q.defer();
             $http.post(mqttConstants.API_SERVER_URL + mqttConstants.API_SUBSCRIBE_URL, params)
-                .then(function(data) {
+                .then(function (data) {
                     def.resolve(data);
-                    console.log(data);
                     toastr.success('Successfully subscribed!')
                 })
-                .catch(function(data) {
+                .catch(function (data) {
                     console.log(data);
                 });
             return def.promise;
@@ -128,12 +122,35 @@
         function unsubscribe(params) {
             var def = $q.defer();
             $http.post(mqttConstants.API_SERVER_URL + mqttConstants.API_UNSUBSCRIBE_URL, params)
-                .then(function(data) {
+                .then(function (data) {
                     def.resolve(data);
-                    console.log(data);
                     toastr.success('Successfully unsubscribed!')
                 })
-                .catch(function(data) {
+                .catch(function (data) {
+                    console.log(data);
+                });
+            return def.promise;
+        }
+
+        function getUsers() {
+            var def = $q.defer();
+            $http.post(mqttConstants.API_SERVER_URL + mqttConstants.API_USERS_LIST_URL)
+                .then(function (data) {
+                    def.resolve(data.data);
+                })
+                .catch(function (data) {
+                    console.log(data);
+                });
+            return def.promise;
+        }
+
+        function removeUser(params) {
+            var def = $q.defer();
+            $http.post(mqttConstants.API_SERVER_URL + mqttConstants.API_USERS_REMOVE_URL, params)
+                .then(function (data) {
+                    def.resolve(data.data);
+                })
+                .catch(function (data) {
                     console.log(data);
                 });
             return def.promise;

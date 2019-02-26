@@ -23,7 +23,6 @@ var ENUM = require('../lib/enum');
 
 
 function SNconnect(options) {
-    // console.log(arguments[0]);
 
      var clientID;
 
@@ -49,14 +48,10 @@ function SNconnect(options) {
             willFlag = options.willFlag;
             return this;
         },
-        // getUsername: function() {
-        //     return username;
-        // },
         getType: function() {
             return ENUM.MessageType.SN_CONNECT;
         },
         processBy: function(device) {
-            // console.log(username.length);
             device.processConnect({
                 cleanSession: cleanSession,
                 keepalive: keepalive

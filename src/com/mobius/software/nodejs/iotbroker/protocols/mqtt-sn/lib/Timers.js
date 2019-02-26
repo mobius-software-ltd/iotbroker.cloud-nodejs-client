@@ -22,7 +22,6 @@ var Timers = function Timers() {
     var timers = [];
 
     this.releaseTimer = function(index) {
-        console.log('realease timer ' + index)
         if (typeof timers[index] == 'undefined') return;
         timers[index].stopTimer();
         delete timers[index];
@@ -30,7 +29,6 @@ var Timers = function Timers() {
 
     this.setTimer = function(i, timer) {
         timers[i] = timer;
-        console.log('index set:', i);
     };
 };
 

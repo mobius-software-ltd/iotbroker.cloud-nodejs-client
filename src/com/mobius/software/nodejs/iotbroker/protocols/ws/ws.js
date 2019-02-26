@@ -268,10 +268,6 @@ function onDataRecieved(data) {
         var publishTopic = resp.payload.data.topic.name;
         var publishQos = resp.payload.data.topic.qos;
         var publishContent = Buffer.from(resp.payload.data.content, 'base64').toString('ascii');
-        console.log("Publish received!. id:", id);
-        console.log("Publish qos:", publishQos);
-        console.log("Publish topic:", publishTopic);
-        console.log("Publish content:", publishContent);
         var message = {
             packetID: id,
             topic: publishTopic,

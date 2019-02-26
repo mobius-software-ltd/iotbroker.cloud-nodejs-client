@@ -14,10 +14,7 @@
             setSessionData: setSessionData,
             pushTopic: pushTopic,
             popTopic: popTopic,
-            getTopics: getTopics,
-            getUsersListFromStorage: getUsersListFromStorage,
-            addUserToStorage: addUserToStorage,
-            removeUserFromStorage: removeUserFromStorage
+            getTopics: getTopics            
         }
 
         var session = {};
@@ -27,8 +24,7 @@
             if (typeof session == 'undefined')
                 session = angular.fromJson(sessionStorage.getItem('mqttSession'));
             if (typeof session == 'undefined' || session == null) {
-                $rootScope.auth = false; 
-                toastr.warning('First please log in!');
+                $rootScope.auth = false;                
                 $location.path('/');
                 return;
             }
@@ -45,41 +41,7 @@
             if(data) addUserToStorage(data);
             
             $rootScope.auth = true;
-        }
-
-        function getUsersListFromStorage() {
-            return angular.fromJson(localStorage.getItem('IOTUsers'))
-        }
-
-        function addUserToStorage(data) { 
-            var listUsers = getUsersListFromStorage();           
-            if (!listUsers) {
-                listUsers = [];
-            } else {
-                for(var i = 0; i < listUsers.length; i++) {
-                    if(data.clientID == listUsers[i].clientID && data.type.name == listUsers[i].type.name) {
-                        listUsers.splice(i, 1);
-                        i--
-                    }
-                }
-            }
-
-            listUsers.push(data)
-            localStorage.setItem('IOTUsers', angular.toJson(listUsers));
-        }
-
-        function removeUserFromStorage(unique) {
-            var listUsers = getUsersListFromStorage();
-            if(listUsers) {
-                for(var i = 0; i < listUsers.length; i++) {
-                    if(unique == listUsers[i].unique) {
-                        listUsers.splice(i, 1);                        
-                    }
-                }
-            }   
-            localStorage.setItem('IOTUsers', angular.toJson(listUsers));
-        }
-
+        }   
 
         function pushTopic(newTopics) {
             topics = [];

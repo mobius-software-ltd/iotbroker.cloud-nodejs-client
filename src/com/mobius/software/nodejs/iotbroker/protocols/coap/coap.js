@@ -154,9 +154,7 @@ function onDataRecieved(data) {
     var that = this;
     var decoded = {};
     var parentEvent = 'coapresponse';
-    console.log("Data received: ", data);
-    console.log("Data type decoded", ENUM.getKeyByValue(ENUM.CoapTypes, (parser.decode(data)).getType()));
-
+   
     try {
         decoded = parser.decode(data);
     } catch (error) {

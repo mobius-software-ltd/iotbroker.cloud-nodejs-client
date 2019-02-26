@@ -34,8 +34,6 @@ function IdTopic(newTopic, newQos) {
             return ENUM.TopicType.ID;
         },
         encode: function() {   
-            console.log('3223232323322323') 
-            console.log(topic)  
             const buf = Buffer.allocUnsafe(2);
 
             buf.writeUInt16BE(topic, 0)

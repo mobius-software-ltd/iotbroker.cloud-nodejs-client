@@ -35,12 +35,9 @@ function SimpleConstructor(code) {
         setCode: function (code) {
             code = code;
         },
-        getBytes: function () {
-            // var buf = Buffer.alloc(1, code.getType());
-           
+        getBytes: function () {           
             try {            
-                var buf = Buffer.alloc(1, this.getCode())
-              //  buf.write(this.getCode().toString(16), 'hex')
+                var buf = Buffer.alloc(1, this.getCode());
             } catch (e) {
                 console.log(e)
             }

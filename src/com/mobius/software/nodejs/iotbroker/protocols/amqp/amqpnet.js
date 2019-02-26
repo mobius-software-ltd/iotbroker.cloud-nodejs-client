@@ -140,7 +140,6 @@ function connectionDone(msg) {
         delete connections[msg.unique];
         delete timers[msg.unique];
         delete connectionParams[msg.unique];
-        console.log('STOP!')
     }
 }
 

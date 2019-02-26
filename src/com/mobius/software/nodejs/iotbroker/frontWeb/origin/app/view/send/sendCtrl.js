@@ -26,6 +26,7 @@
             vm.message.type = vm.sessionData.type;
             vm.message.unique = vm.sessionData.unique;
             dataFactory.publish(vm.message);
+            vm.message = {};
         }
 
         init();

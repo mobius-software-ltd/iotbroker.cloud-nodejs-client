@@ -16,7 +16,6 @@
 
 
         function getMessages() {
-            // console.log(topics);
             dataFactory.getMessages({
                 directions: ["in", "out"],
                 topics: topics,
@@ -25,7 +24,6 @@
                 type: sessionData.type,
                 unique:  sessionData.unique
             }).then(function(data) {
-                // console.log(data);
                 vm.messages = data.data;
             }).catch(function(data) {
                 toastr.error(data, 'Oops some error here!');
