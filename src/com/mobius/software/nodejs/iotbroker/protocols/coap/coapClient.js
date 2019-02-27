@@ -117,7 +117,7 @@ function processConnect(msg) {
   
     bus.send('coapudp.newSocket', msg);
     db.loadDatabase();
-    db.remove({ 'type': 'connection', 'connection.clientID': msg.params.connection.clientID }, { multi: true });
+    db.remove({ 'type': 'connection', 'connection.clientID': msg.params.connection.clientID }, { multi: true });  
     db.insert(msg.params);
 
     CLIENT[msg.params.connection.unique] = new coap();

@@ -123,7 +123,7 @@ function sendData(msg) {
         timers[msg.unique].setTimer(msg.packetID, newTimer);
     }
     try {
-        if(connections[msg.unique])
+        if(connections[msg.unique] && typeof msg.payload != 'undefined')
         connections[msg.unique].write(Buffer.from(msg.payload));
     } catch (e) {
         socketEndOnError(e, msg.unique, msg.packetID);

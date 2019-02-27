@@ -283,6 +283,10 @@ input:checked + .slider:before {
   .iotBtn-rounded:hover {
     background: #18a3dc; }
 
+#userslist .account {
+  width: 85%;
+  cursor: pointer; }
+
 #userslist .login-title {
   margin: 0; }
   #userslist .login-title h1 {
@@ -310,7 +314,6 @@ input:checked + .slider:before {
 
 #userslist .users-item {
   padding: 10px;
-  cursor: pointer;
   border-bottom: 2px solid lightgrey; }
   #userslist .users-item h4 {
     margin: 0;

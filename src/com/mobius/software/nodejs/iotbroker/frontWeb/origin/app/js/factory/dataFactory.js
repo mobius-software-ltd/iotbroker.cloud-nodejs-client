@@ -24,7 +24,7 @@
         function connect(customer) {
             $http.post(mqttConstants.API_SERVER_URL + mqttConstants.API_CONNECT_URL, customer)
                 .then(function (data) {
-                    if (data.data.length < 1 && customer.type.id != 3) {
+                    if (data.data.length < 1) {
                         toastr.error('Login failed!');
                         return;
                     }

@@ -346,6 +346,10 @@ input:checked+.slider:before {
     
 }
 #userslist {  
+    .account {
+        width: 85%;
+        cursor: pointer;
+    }
     .login {
         &-title {
         margin: 0;
@@ -376,8 +380,7 @@ input:checked+.slider:before {
     } 
 
     .users-item {
-       padding: 10px;       
-       cursor: pointer;
+       padding: 10px;  
         border-bottom: 2px solid lightgrey;
         h4 {
             margin: 0;

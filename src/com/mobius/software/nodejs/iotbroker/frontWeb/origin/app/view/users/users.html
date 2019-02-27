@@ -6,13 +6,13 @@
     <div class="login-row form-group-lg">
         <div class="login-formElements clearfix" >
             <div class="users-item clearfix" ng-repeat="item in Ctrl.userslist" >
-                <div class="pull-left" data-dismiss="modal" ng-click="Ctrl.connect(item)">
+                <div class="account pull-left" title="Connect" data-dismiss="modal" ng-click="Ctrl.connect(item)">
                         <h4>{{item.type.name}}</h4>
                         <span>{{item.clientID}}</span><br>
                         <span>{{item.host}}:{{item.port}}</span>
                 </div>
                 <div class="pull-right">
-                    <button type="button" ng-click="Ctrl.removeUserFromList(item)" class="btn iotBtn iotBtn-rounded ">
+                    <button type="button" title="remove" ng-click="Ctrl.removeUserFromList(item)" class="btn iotBtn iotBtn-rounded ">
                         <img ng-src="img/delete_topic_icon.png">
                     </button>
                 </div>

@@ -462,6 +462,7 @@ function processConnack(data, id) {
             db.insert({
                 type: 'snconnack',
                 connectionId: id,
+                unique: vm.unique,
                 id: guid()
             });
         });

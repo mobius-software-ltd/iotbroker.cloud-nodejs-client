@@ -225,6 +225,16 @@ function onDataRecieved(data) {
                 var topic = ack.getOptionValue(ENUM.CoapOptionDefinitions.COAP_URI_PATH_OPTION);
 
                 var content = decoded.getPayload();
+                
+                db.loadDatabase();
+                db.remove({ type: 'coapconnack' }, { multi: true }, function (err, docs) {
+                    db.insert({
+                        type: 'coapconnack',
+                        unique: vm.unique,
+                        id: guid()
+                    });
+                });
+
 
                 processPubackReceived(token, this)
             }

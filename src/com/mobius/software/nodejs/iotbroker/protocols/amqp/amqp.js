@@ -445,6 +445,7 @@ function processBegin(client, that) {
 		db.remove({ type: 'amqp.connack' }, { multi: true }, function (err, docs) {
 			db.insert({
 				type: 'amqp.connack',
+				unique: client.unique,
 				connectionId: id,
 				id: guid()
 			});

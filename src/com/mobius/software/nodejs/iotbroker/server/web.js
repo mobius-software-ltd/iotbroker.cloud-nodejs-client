@@ -108,7 +108,7 @@ if (cluster.isMaster) {
             res.status(400).send('Invalid request! Parameter "keepalive" mismatch.');
             return;
         }
-        if(req.body.secure && req.body.certificate &&  req.body.certificate.indexOf('ENCRYPTED') != -1 && !req.body.privateKey) {           
+        if(req.body.secure && req.body.certificate && req.body.certificate.indexOf('ENCRYPTED') != -1 && !req.body.privateKey) {           
             res.status(400).send('Invalid request! Add "password" to your certificate');
             return;
         }
@@ -167,7 +167,7 @@ if (cluster.isMaster) {
 
                 var tryNum = 0;
                 setTimeout(function () {
-                    mqttClient.getData({ type: 'connack', connectionId: req.body.username }, res);
+                    mqttClient.getData({ type: 'connack', unique: req.body.unique }, res);
                 }, 1000);
                 break;
             case 2:
@@ -175,7 +175,7 @@ if (cluster.isMaster) {
                     params: connectionParams,
                 });
                 setTimeout(function () {
-                    snClient.getData({ type: 'snconnack', connectionId: req.body.clientID }, res);
+                    snClient.getData({ type: 'snconnack', unique: req.body.unique }, res);
                 }, 500);
                 break;
             case 3:
@@ -184,8 +184,8 @@ if (cluster.isMaster) {
                     params: connectionParams,
                 });
                 setTimeout(function () {
-                    coapClient.getData({ type: 'connection', connectionId: req.body.clientID }, res);
-                }, 500);
+                    coapClient.getData({ type: 'coapconnack', unique: req.body.unique }, res);
+                }, 1000);
                 break;
             case 4:
                 amqpClient.send(currClient.name + '.connect', {
@@ -194,7 +194,7 @@ if (cluster.isMaster) {
                 });
                 var tryNum = 0;
                 setTimeout(function () {
-                    amqpClient.getData({ type: 'amqp.connack', connectionId: req.body.username }, res);
+                    amqpClient.getData({ type: 'amqp.connack', unique: req.body.unique }, res);
                 }, 1500);
                 //  res.send('Testing ')
                 break;
@@ -205,7 +205,7 @@ if (cluster.isMaster) {
                 });
                 var tryNum = 0;
                 setTimeout(function () {
-                    wsClient.getData({ type: 'connack', connectionId: req.body.username }, res);
+                    wsClient.getData({ type: 'connack', unique: req.body.unique }, res);
                 }, 500);
                 break;
 
