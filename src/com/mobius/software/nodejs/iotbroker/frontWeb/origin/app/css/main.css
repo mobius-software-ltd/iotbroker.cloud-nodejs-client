@@ -293,7 +293,8 @@ input:checked + .slider:before {
   padding: 0;
   min-height: 200px;
   height: -webkit-calc(100vh - 96px - 82px);
-  height: calc(100vh - 96px - 82px); }
+  height: calc(100vh - 96px - 82px);
+  overflow: scroll; }
 
 #userslist .login-button {
   background-color: #0094d2; }

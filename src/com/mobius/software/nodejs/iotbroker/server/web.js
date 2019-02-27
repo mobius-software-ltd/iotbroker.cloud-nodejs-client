@@ -108,7 +108,7 @@ if (cluster.isMaster) {
             res.status(400).send('Invalid request! Parameter "keepalive" mismatch.');
             return;
         }
-        if(req.body.secure && req.body.certificate.indexOf('ENCRYPTED') != -1 && !req.body.privateKey) {           
+        if(req.body.secure && req.body.certificate &&  req.body.certificate.indexOf('ENCRYPTED') != -1 && !req.body.privateKey) {           
             res.status(400).send('Invalid request! Add "password" to your certificate');
             return;
         }

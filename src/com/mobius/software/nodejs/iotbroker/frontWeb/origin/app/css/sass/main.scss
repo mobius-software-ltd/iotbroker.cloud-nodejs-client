@@ -357,7 +357,8 @@ input:checked+.slider:before {
         &-formElements {
             padding: 0;
             min-height: 200px;
-            height: calc(100vh - 96px - 82px)
+            height: calc(100vh - 96px - 82px);
+            overflow: scroll;
         }
         &-button {
             background-color: #0094d2;
