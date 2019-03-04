@@ -34,16 +34,16 @@
               document.documentElement.scrollTop = document.documentElement.offsetHeight;
             }, 200)
             
-        }
-
+        }   
+       
         function deleteItem(params) {
-            if (typeof params.item == 'undefined') return;
+            if (typeof params == 'undefined') return;
             dataFactory.unsubscribe({
-                topics: [params.item.topic],
+                topics: [params.topic],
                 username: sessionData.username,
                 clientID: sessionData.clientID,
                 type: sessionData.type,
-                topic: [params.item],
+                topic: [params],
                 unique: sessionData.unique  
             }).then(function(data) {
                 setTimeout(function() {

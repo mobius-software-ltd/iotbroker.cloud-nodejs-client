@@ -35,6 +35,7 @@ var guid = require('../protocols/mqtt/lib/guid');
 var cluster = require('cluster');
 var numCPUs = require('os').cpus().length;
 var users = require('./routes/users');
+var check = require('./routes/check')
 var Datastore = require('nedb');
 var db = new Datastore({ filename: 'userData' });
 
@@ -70,6 +71,8 @@ if (cluster.isMaster) {
     });
 
     app.use('/users', users);
+
+    app.use('/check', check);
 
     app.post('/connect', function onConnect(req, res) {
               
@@ -175,7 +178,7 @@ if (cluster.isMaster) {
                     params: connectionParams,
                 });
                 setTimeout(function () {
-                    snClient.getData({ type: 'snconnack', unique: req.body.unique }, res);
+                    snClient.getData({ type: 'connack', unique: req.body.unique }, res);
                 }, 500);
                 break;
             case 3:
@@ -184,7 +187,7 @@ if (cluster.isMaster) {
                     params: connectionParams,
                 });
                 setTimeout(function () {
-                    coapClient.getData({ type: 'coapconnack', unique: req.body.unique }, res);
+                    coapClient.getData({ type: 'connack', unique: req.body.unique }, res);
                 }, 1000);
                 break;
             case 4:
@@ -194,7 +197,7 @@ if (cluster.isMaster) {
                 });
                 var tryNum = 0;
                 setTimeout(function () {
-                    amqpClient.getData({ type: 'amqp.connack', unique: req.body.unique }, res);
+                    amqpClient.getData({ type: 'connack', unique: req.body.unique }, res);
                 }, 1500);
                 //  res.send('Testing ')
                 break;
@@ -384,6 +387,7 @@ if (cluster.isMaster) {
                 res.status(400).send('Invalid request! Parameters mismatch.');
                 return;
             }
+            res.send('subscribe received');
         }
         if (currentProtocol == 2) {
             try {
@@ -395,6 +399,9 @@ if (cluster.isMaster) {
                 res.status(400).send('Invalid request! Parameters mismatch.');
                 return;
             }
+            setTimeout(function () {
+                snClient.getData({ type: 'snsubscribtion', 'subscribtion.unique': unique, 'subscribtion.topic': req.body.topics[0].topic }, res);
+            }, 500);
         }
         if (currentProtocol == 3) {
             try {
@@ -406,6 +413,7 @@ if (cluster.isMaster) {
                 res.status(400).send('Invalid request! Parameters mismatch.');
                 return;
             }
+            res.send('subscribe received');
         }
         if (currentProtocol == 4) {
             if (!req.body.username) {
@@ -423,6 +431,7 @@ if (cluster.isMaster) {
                 res.status(400).send('Invalid request! Parameters mismatch.');
                 return;
             }
+            res.send('subscribe received');
         }
         if (currentProtocol == 5) {
             if (!req.body.username) {
@@ -440,8 +449,9 @@ if (cluster.isMaster) {
                 res.status(400).send('Invalid request! Parameters mismatch.');
                 return;
             }
+            res.send('subscribe received');
         }
-        res.send('subscribe received');
+        //res.send('subscribe received');
     });
 
     app.post('/unsubscribe', function onUnsubscribe(req, res) {

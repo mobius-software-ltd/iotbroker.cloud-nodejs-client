@@ -13,7 +13,8 @@
             API_MESSAGES_URL: '/getmessages',
             API_TOPICS_URL: '/gettopics',
             API_USERS_LIST_URL: '/users',
-            API_USERS_REMOVE_URL: '/users/remove'
+            API_USERS_REMOVE_URL: '/users/remove',
+            API_CONNECTION_URL: '/check'
         });
 
 }());

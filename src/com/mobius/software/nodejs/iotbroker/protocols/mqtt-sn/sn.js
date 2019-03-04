@@ -135,6 +135,7 @@ function disconnect(params) {
         console.log('Parser can`t encode provided params.');
     }
     sendData(encDisconnect, 0, 'sn.disconnect');
+   // connectionDone(null, 'sn.disconnect');
 }
 
 function subscribe(params) {   
@@ -263,11 +264,11 @@ function onDataRecieved(data, unique, thisClientID, tokens) {
     }
 
     if (decoded.getType() == ENUM.MessageType.SN_WILLTOPICREQ) {
-        processWillTopic();
+        processWillTopic(this);
     }
 
     if (decoded.getType() == ENUM.MessageType.SN_WILLMSGREQ) {
-        processWillmsg()
+        processWillmsg(this)
     }
 
     if (decoded.getType() == ENUM.MessageType.SN_CONNACK) {
@@ -458,19 +459,14 @@ function processConnack(data, id) {
     connectionDone(null, 'snconnack');
     db.loadDatabase();
     if (data.getCode() == 'ACCEPTED') {
-        db.remove({ type: 'snconnack' }, { multi: true }, function (err, docs) {
             db.insert({
-                type: 'snconnack',
+                type: 'connack',
                 connectionId: id,
                 unique: vm.unique,
                 id: guid()
             });
-        });
         ping(id);
-    } else {
-        db.remove({ type: 'snconnack' }, { multi: true }, function (err, docs) {
-        });
-    }
+    } 
 }
 
 function processRegister(data, packetID, client) {
@@ -480,8 +476,8 @@ function processRegister(data, packetID, client) {
     sendData(data, null, 'snregister');
 }
 
-function processWillTopic() {
-    var willtopic = SNwilltopic(new FullTopic(this.topic, CLIENT[msg.params.connection.unique].qos), CLIENT[msg.params.connection.unique].retain);
+function processWillTopic(client) {
+    var willtopic = SNwilltopic(new FullTopic(client.topic, client.qos), client.retain);
     var message = parser.encode(willtopic);
     sendData(message, null, 'snwilltopic');
 }
@@ -521,8 +517,8 @@ function processSuback(data, msg) {
     db.insert(subscribtions);
 }
 
-function processWillmsg() {
-    var willmessage = SNwillmsg(this[unique].message)
+function processWillmsg(client) {
+    var willmessage = Willmsg(client.message)
     var message = parser.encode(willmessage);
     sendData(message, null, 'snwillmsg');
 }

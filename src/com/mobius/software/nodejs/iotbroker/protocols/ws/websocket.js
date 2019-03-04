@@ -26,7 +26,8 @@ var bus = require('servicebus').bus({
 });
 var cluster = require('cluster');
 var numCPUs = args[0] || require('os').cpus().length;
-
+var Datastore = require('nedb');
+var db = new Datastore({ filename: 'data' });
 var TOKENS = require('./lib/Tokens');
 var TIMERS = require('./lib/Timers');
 var Timer = require('./lib/Timer');
@@ -171,6 +172,8 @@ function connectionDone(msg) {
         timers[msg.unique].releaseTimer(msg.packetID);
 
     if (msg.parentEvent == 'wsDisconnect') {
+        db.loadDatabase();
+        db.remove({ type: 'connack', unique: msg.unique })
         connections[msg.unique].close();
         delete timers[msg.unique];
         delete connections[msg.unique];
@@ -180,6 +183,8 @@ function connectionDone(msg) {
 
 function socketEndOnError(e, unique, packetID) {
     console.log('Unable to establish connection to the server. Error: ', e);
+    db.loadDatabase();
+    db.remove({ type: 'connack', unique: unique })
     if (typeof timers[unique] != 'undefined') {
         timers[unique].releaseTimer(packetID);
         delete timers[unique];

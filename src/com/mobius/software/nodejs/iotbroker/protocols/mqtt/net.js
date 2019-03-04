@@ -31,7 +31,8 @@ var numCPUs = args[0] || require('os').cpus().length;
 var TOKENS = require('./lib/Tokens');
 var TIMERS = require('./lib/Timers');
 var Timer = require('./lib/Timer');
-
+var Datastore = require('nedb');
+var db = new Datastore({ filename: 'data' });
 var connections = {};
 var connectionParams = {};
 var timers = {};
@@ -137,6 +138,8 @@ function connectionDone(msg) {
     timers[msg.unique].releaseTimer(msg.packetID);
 
     if (msg.parentEvent == 'mqttDisconnect') {
+        db.loadDatabase();
+        db.remove({ type: 'connack', unique: msg.unique })
         connections[msg.unique].end();
         delete timers[msg.unique];
         delete connections[msg.unique];
@@ -147,6 +150,8 @@ function connectionDone(msg) {
 
 function socketEndOnError(e, unique, packetID) {
     console.log('Unable to establish connection to the server. Error: ', e);
+    db.loadDatabase();
+    db.remove({ type: 'connack', unique: unique });
     if (typeof timers[unique] != 'undefined') {
         timers[unique].releaseTimer(packetID);
         delete timers[unique];

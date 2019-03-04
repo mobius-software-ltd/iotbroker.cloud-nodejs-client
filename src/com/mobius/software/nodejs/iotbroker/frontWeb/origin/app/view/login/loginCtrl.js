@@ -27,19 +27,7 @@
         };
         vm.connect = connect;
 
-        init();  
-        vm.login = {
-            certificate: null,
-            clientID: "123",
-            host: "broker.iotbroker.cloud",
-            isClean: false,
-            keepalive: "10",
-            password: "galina1988",
-            port: "1883",
-            privateKey: null,
-            type: {name: "MQTT", id: 1, $$hashKey: "object:5"},
-            username: "yulian.oifa@mobius-software.com"
-           }
+        init();         
 
         function connect(user) {
             for(var i = 0; i < vm.types.length; i++) {
@@ -47,9 +35,9 @@
                     user.type = vm.types[i];
                 }
             }
-            user.unique = user.clientID + Math.random().toString(18).substr(2, 16);            
-            dataFactory.connect(user);
-        }
+            user.unique = user.clientID + Math.random().toString(18).substr(2, 16);  
+            dataFactory.connect(user);            
+        }       
        
         function init() {}
 

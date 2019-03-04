@@ -99,7 +99,7 @@ function processConnect(msg) {
     } else {
         CLIENT[msg.params.connection.unique].flags = 0;
     }
-    CLIENT[msg.params.connection.unique].keepalive = msg.params.connection.keepalive;
+    CLIENT[msg.params.connection.unique].keepalive = msg.params.connection.keepalive;   
 }
 
 function processPublish(msg) {

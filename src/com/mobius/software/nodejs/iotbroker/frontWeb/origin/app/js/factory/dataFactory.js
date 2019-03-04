@@ -18,7 +18,8 @@
             unsubscribe: unsubscribe,
             disconnect: disconnect,
             getUsers: getUsers,
-            removeUser: removeUser
+            removeUser: removeUser,
+            checkConnection: checkConnection
         }
 
         function connect(customer) {
@@ -28,9 +29,9 @@
                         toastr.error('Login failed!');
                         return;
                     }
-                    $location.path('/topics');
-                    sessionFactory.setSessionData(customer);
-                    toastr.success('Successfully logged in!', data);
+                    $location.path('/topics');                    
+                    sessionFactory.setSessionData(customer);                   
+                    toastr.success('Successfully logged in!', data);                   
                 }, function (data) {
                     toastr.error(data.data, 'Oops some error here!');
 
@@ -111,7 +112,10 @@
             $http.post(mqttConstants.API_SERVER_URL + mqttConstants.API_SUBSCRIBE_URL, params)
                 .then(function (data) {
                     def.resolve(data);
-                    toastr.success('Successfully subscribed!')
+                    if(data.data.length)
+                     toastr.success('Successfully subscribed!');
+                     else
+                     toastr.error('Subscribe error!');
                 })
                 .catch(function (data) {
                     console.log(data);
@@ -152,6 +156,18 @@
                 })
                 .catch(function (data) {
                     console.log(data);
+                });
+            return def.promise;
+        }
+
+        function checkConnection(params) {
+            var def = $q.defer();
+            $http.post(mqttConstants.API_SERVER_URL + mqttConstants.API_CONNECTION_URL, params)
+                .then(function (data) {                   
+                    def.resolve(data.data);
+                })
+                .catch(function (data) {
+                    $location.path('/');
                 });
             return def.promise;
         }

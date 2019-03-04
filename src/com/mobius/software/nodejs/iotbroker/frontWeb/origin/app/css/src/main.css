@@ -243,6 +243,16 @@ input:checked + .slider:before {
   text-align: center;
   font-size: 18px; }
 
+.topicRemove .buttonRemove {
+  padding: 0; }
+
+.topicRemove .iotBtn {
+  width: 30px;
+  height: 30px;
+  margin-top: 0; }
+  .topicRemove .iotBtn img {
+    margin-top: -1px; }
+
 .topicAdd .popover {
   max-width: 960px;
   min-width: 480px; }

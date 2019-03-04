@@ -309,6 +309,17 @@ input:checked+.slider:before {
                 // min-height: 70px;
             }
         }
+        .buttonRemove {
+            padding: 0;
+        }
+        .iotBtn {
+            width: 30px;
+            height: 30px;
+            margin-top: 0;
+            img {
+                margin-top: -1px;
+            }
+        }
     }
     &Add {
         .popover {

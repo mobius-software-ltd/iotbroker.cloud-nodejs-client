@@ -442,14 +442,14 @@ function processBegin(client, that) {
 		var id = client.username;
 		clearInterval(vm.connectTimeout)
 		db.loadDatabase();
-		db.remove({ type: 'amqp.connack' }, { multi: true }, function (err, docs) {
+		// db.remove({ type: 'amqp.connack' }, { multi: true }, function (err, docs) {
 			db.insert({
-				type: 'amqp.connack',
+				type: 'connack',
 				unique: client.unique,
 				connectionId: id,
 				id: guid()
 			});
-		});
+		// });
 		that.params.type = 'amqp.connection';
 		db.insert(that.params);
 

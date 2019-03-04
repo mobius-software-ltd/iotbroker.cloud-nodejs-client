@@ -373,18 +373,14 @@ function processConnack(data) {
     connectionDone(1, 'wsConnack');
     db.loadDatabase();
     if (data.payload.data.returnCode == ENUM.ConnackCode.ACCEPTED) {
-        db.remove({ type: 'connack' }, { multi: true }, function (err, docs) {
             db.insert({
                 type: 'connack',
                 connectionId: username,
                 unique: unique,
                 id: guid()
             });
-        });
         ping();
-    } else {
-        db.remove({ type: 'connack' }, { multi: true }, function (err, docs) { });
-    }
+    } 
 }
 
 function processPublish(data, msg, packetID, parent) {

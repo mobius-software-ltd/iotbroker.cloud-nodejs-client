@@ -178,6 +178,11 @@ function connect(params) {
         keepalive: params.keepalive,
     });
 
+    if(params.isClean) {
+        db.loadDatabase()
+        db.remove({ 'type': 'subscribtion', 'subscribtion.clientID': params.clientID }, { multi: true });
+    }
+    
     if (!!params.will) {
         connect.will = Will(Topic(Text(params.will.topic), params.will.qos), Buffer.from(params.will.content), params.will.retain);
     }
@@ -342,21 +347,15 @@ function processConnack(data, unique, username) {
         connectionDone(data.getPacketID(), 'mqttConnack');  
 
         db.loadDatabase();
-        if (data.getReturnCode() == 'ACCEPTED') {
-            db.remove({ type: 'connack' }, { multi: true }, function(err, docs) {
+        if (data.getReturnCode() == 'ACCEPTED') {           
                 db.insert({
                     type: 'connack',
                     connectionId: username,
                     unique:unique,
                     id: guid()
                 });
-            });
             ping();
-        } else {
-            db.remove({ type: 'connack' }, { multi: true }, function(err, docs) {
-
-            });
-        }
+        } 
 }
 function processConnect(payload, packetID, parentEvent) {
     

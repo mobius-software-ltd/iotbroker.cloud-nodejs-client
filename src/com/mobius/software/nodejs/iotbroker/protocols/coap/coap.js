@@ -227,9 +227,9 @@ function onDataRecieved(data) {
                 var content = decoded.getPayload();
                 
                 db.loadDatabase();
-                db.remove({ type: 'coapconnack' }, { multi: true }, function (err, docs) {
+                db.remove({ type: 'connack', unique: vm.unique }, { multi: true }, function (err, docs) {
                     db.insert({
-                        type: 'coapconnack',
+                        type: 'connack',
                         unique: vm.unique,
                         id: guid()
                     });

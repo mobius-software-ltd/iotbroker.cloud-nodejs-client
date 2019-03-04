@@ -36,7 +36,8 @@ var TIMERS = require('./lib/Timers');
 var Timer = require('./lib/Timer');
 var ENUM = require('./lib/enum');
 var COAPmessage = require('./lib/message');
-
+var Datastore = require('nedb');
+var db = new Datastore({ filename: 'data' });
 var vm = this;
 var unique;
 var connections = {};
@@ -86,15 +87,16 @@ function createSocket(msg) {
 
     var oldUniqueCoap = vm.unique;
     vm.unique = msg.params.connection.unique;
-
     if (typeof oldUniqueCoap != 'undefined') {
+        if(typeof timers[oldUniqueCoap] != 'undefined') {
         timers[oldUniqueCoap].releaseTimer(-1);
+        }
         // tokens[oldUniqueCoap].releaseToken(data.getPacketID());
         delete timers[oldUniqueCoap];
         delete connections[oldUniqueCoap];
         delete connectionParams[oldUniqueCoap];
         delete tokens[oldUniqueCoap];
-        udp.close()
+       // udp.close()
         oldUniqueCoap = undefined;
         connections = {};
         connectionParams = {};
@@ -244,6 +246,8 @@ function connectionDone(msg) {
             }
 
             if (msg.parentEvent == 'coap.disconnect') {
+                db.loadDatabase();
+                db.remove({ type: 'connack', unique: msg.unique });
                 timers[msg.unique].releaseTimer(-1);
                 delete timers[msg.unique];
                 delete connections[msg.unique];
@@ -253,6 +257,8 @@ function connectionDone(msg) {
 
 function socketEndOnError(e, unique, packetID) {
     console.log('Unable to establish connection to the server. Error: ', e);
+    db.loadDatabase();
+    db.remove({ type: 'connack', unique: unique });
     if (typeof timers[unique] != 'undefined') {
         timers[unique].releaseTimer(packetID);
         delete timers[unique];

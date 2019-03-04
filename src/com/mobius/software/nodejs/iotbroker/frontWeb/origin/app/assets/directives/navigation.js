@@ -1,14 +1,14 @@
 (function() {
     'use strict';
 
-    navigation.$inject = ["$location", "$rootScope", "sessionFactory"];
+    navigation.$inject = ["$location", "dataFactory", "$timeout", "$rootScope", "sessionFactory"];
     angular
         .module('mqtt')
         .directive('navigation', navigation);
 
 
     /** @ngInject */
-    function navigation($location, $rootScope, sessionFactory) {
+    function navigation($location, dataFactory, $timeout, $rootScope, sessionFactory) {
 
         function navigationController() {
             var vm = this;
@@ -16,9 +16,24 @@
             vm.auth = $rootScope.auth;
             init();
             
+            check();
+
+            function check() {
+                var user = sessionFactory.getSessionData();
+                dataFactory.checkConnection({ unique: user.unique })
+                    .then(function(success) {
+                        if(!success) {
+                            dataFactory.disconnect(user);
+                          //  $location.path('/');
+                        }
+                        vm.timer = $timeout(check, 2000);
+                    }, function(error) {
+                        dataFactory.disconnect(user);
+                    } )
+            };
             $rootScope.$on('$routeChangeSuccess', function() {
                 vm.route = $location.$$url;
-
+                $timeout.cancel( vm.timer);
             })
 
             function init() {

@@ -42,6 +42,11 @@ var connections = {};
 var connectionParams = {};
 var timers = {};
 var tokens = {};
+var Datastore = require('nedb');
+var db = new Datastore({ filename: 'data' });
+var Will = require('./lib/Will');
+var Topic = require('./lib/Topic');
+var Text = require('./lib/Text');
 var host;
 var port;
 var unique;
@@ -82,14 +87,15 @@ function createSocket(msg) {
     vm.unique = msg.params.connection.unique;
 
     if (typeof oldUnique != 'undefined') {
-        timers[oldUnique].releaseTimer(-1);
-        timers[oldUnique].releaseTimer(-2);
+        if(typeof timers[oldUnique] != 'undefined') {
+            timers[oldUnique].releaseTimer(-1);
+            timers[oldUnique].releaseTimer(-2);
+        }
         // tokens[oldUnique].releaseToken(data.getPacketID());
         delete timers[oldUnique];
         delete connections[oldUnique];
         delete connectionParams[oldUnique];
         delete tokens[oldUnique];
-        udp.close()
         oldUnique = undefined;
         connections = {};
         connectionParams = {};
@@ -102,6 +108,7 @@ function createSocket(msg) {
         var certificate = null;
         var privateKey = null;
         if (msg.params.connection.certificate) {
+            try {
             certificate = '';
             privateKey = '';
             var arr = [];
@@ -128,6 +135,8 @@ function createSocket(msg) {
             } else {
                 privateKey = Buffer.from(privateKey, 'utf8')
             }
+            } catch(e) {  }
+           
         }        
         dns.lookup(vm.host, function (err, address, family) {
             var options = {
@@ -179,6 +188,15 @@ function createSocket(msg) {
             willFlag: msg.params.connection.flag,
         })
 
+        if(msg.params.connection.isClean) {
+            db.loadDatabase()
+            db.remove({ 'type': 'snsubscribtion', 'subscribtion.connectionId': msg.params.connection.clientID }, { multi: true });
+        }
+
+        if (!!msg.params.connection.will) {
+            connect.will = Will(Topic(Text(msg.params.connection.will.topic), msg.params.connection.will.qos), Buffer.from(msg.params.connection.will.content), msg.params.connection.will.retain);
+            
+        }
 
         vm.connectCount = 0;
         var message = parser.encode(connect);
@@ -218,8 +236,10 @@ function sendData(msg) {
 
                     var message = Buffer.from(msg.payload)
                     if (vm.secure) {
+                        if (connections[msg.unique])
                         udp.write(message);
                     } else {
+                        if (connections[msg.unique])
                         udp.send(message, vm.port, vm.host, function (err) {
                         });
                     }
@@ -247,15 +267,6 @@ function sendData(msg) {
             });
         }
 
-
-        if (msg.parentEvent == 'sn.disconnect') {
-            // timers[msg.unique].releaseTimer(msg.packetID); 
-            timers[msg.unique].releaseTimer(-2);
-            timers[msg.unique].releaseTimer(-1);
-            delete timers[msg.unique];
-            delete connections[msg.unique];
-            delete connectionParams[msg.unique];
-        }
     } catch (e) {
         socketEndOnError(e, msg.unique, msg.packetID);        
         return;
@@ -274,25 +285,29 @@ function connectionDone(msg) {
 
 
     if (msg.parentEvent == 'sn.disconnect' || msg.parentEvent == 'sn.disconnectin') {
+        db.loadDatabase();
+        db.remove({ type: 'connack', unique: msg.unique });        
         timers[msg.unique].releaseTimer(-1);
         timers[msg.unique].releaseTimer(-2);
         timers[msg.unique].releaseTimer(msg.packetID);
         //connections[msg.unique].close();
         delete timers[msg.unique];
+        connections[msg.unique].close();
         delete connections[msg.unique];
-        delete connectionParams[msg.unique];
-
+        delete connectionParams[msg.unique]; 
     }
 }
 
 function socketEndOnError(e, unique, packetID) {
     console.log('Unable to establish connection to the server. Error: ', e);
+    db.loadDatabase();
+    db.remove({ type: 'connack', unique: unique })
     if (typeof timers[unique] != 'undefined') {
         timers[unique].releaseTimer(packetID);
         delete timers[unique];
     }
     if (typeof connections[unique] != 'undefined') {
-        connections[unique].end();
+        connections[unique].close();
         delete connections[unique];
     }
     if (typeof connectionParams[unique] != 'undefined')
