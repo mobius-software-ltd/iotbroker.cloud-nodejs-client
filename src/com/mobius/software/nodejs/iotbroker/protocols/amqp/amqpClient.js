@@ -52,15 +52,10 @@ if (cluster.isMaster) {
         console.log(`worker ${worker.process.pid} died`);
     });
 } else {
-    var connections = {};
-    var timers = {};
     var db = new Datastore({ filename: 'data' });
-    var CLIENT = {};
-    var tokens = {};
-    var delivery = {};
-    var connectTimeout = {};
-    var unique;
-    var username;
+    vm.CLIENT = {};
+    vm.delivery = {};
+    vm.connectTimeout = {};
 
     setTimeout(function () {
 
@@ -68,20 +63,20 @@ if (cluster.isMaster) {
             bus.send('amqp.newSocket', msg);
             db.loadDatabase();
             db.remove({ 'type': 'amqp.connection', 'connection.username': msg.params.connection.username }, { multi: true });
+              
+            vm.unique = msg.params.connection.unique;
+            if(vm.unique) {
+                bus.listen('amqp.disconnect' + vm.unique, function (msg) { processDisconnect(msg) });
+                bus.listen('amqp.subscribe' + vm.unique, function (msg) { processSubscribe(msg) });
+                bus.listen('amqp.unsubscribe' + vm.unique, function (msg) { processUnsubscribe(msg) });
+                bus.listen('amqp.publish' + vm.unique, function (msg) { processPublish(msg) });
+                bus.listen('amqp.socketOpened'  + vm.unique, function (msg) { processSocketopened(msg)     
 
-            unique = msg.params.connection.unique;
-            if(unique) {
-                bus.listen('amqp.disconnect' + unique, function (msg) { processDisconnect(msg) });
-                bus.listen('amqp.subscribe' + unique, function (msg) { processSubscribe(msg) });
-                bus.listen('amqp.unsubscribe' + unique, function (msg) { processUnsubscribe(msg) });
-                bus.listen('amqp.publish' + unique, function (msg) { processPublish(msg) });
-                bus.listen('amqp.socketOpened'  + unique, function (msg) { processSocketopened(msg)     
-
-                  CLIENT[msg.params.connection.unique].Connect(msg.params.connection, connectTimeout);
+                  vm.CLIENT[msg.params.connection.unique].Connect(msg.params.connection, vm.connectTimeout);
                     
                 });
         
-                bus.listen('amqp.dataReceived' + unique, function (msg) { processOnDataReceived(msg)  });
+                bus.listen('amqp.dataReceived' + vm.unique, function (msg) { processOnDataReceived(msg)  });
             }
         });
 
@@ -107,11 +102,11 @@ function getData(req, res) {
 }
 
 function connectionDone(packetID, parentEvent, payload) {
-    bus.send('amqp.done' + unique, {       
+    bus.send('amqp.done' + vm.unique, {       
         packetID: packetID,
-        username: username,
+        username: vm.username,
         parentEvent: parentEvent,
-        unique: unique,
+        unique: vm.unique,
         payload: payload
     });
 }
@@ -123,26 +118,26 @@ var methods = {
 }
 
 function processDisconnect(msg) {
-    if (typeof CLIENT[msg.unique] == 'undefined') return;
-    CLIENT[msg.unique].id = msg.username;
+    if (typeof vm.CLIENT[msg.unique] == 'undefined') return;
+    vm.CLIENT[msg.unique].id = msg.username;
     db.loadDatabase();
     db.remove({ 'type': 'amqp.connection', 'connection.unique': msg.unique }, { multi: true });
-    CLIENT[msg.unique].Disconnect();
+    vm.CLIENT[msg.unique].Disconnect();
 }
 
 function processSubscribe(msg) {
-    if (typeof CLIENT[msg.unique] == 'undefined') return;
+    if (typeof vm.CLIENT[msg.unique] == 'undefined') return;
     
     for (var i = 0; i < msg.params.topics.length; i++) {
         msg.params.topics[i].qos = ENUM.QoS.AT_LEAST_ONCE;
         msg.params.topics[i].clientID = msg.params.clientID,
         msg.params.topics[i].username = msg.username
     }
-    CLIENT[msg.unique].Subscribe(msg.params.topics);
+    vm.CLIENT[msg.unique].Subscribe(msg.params.topics);
 }
 
 function processUnsubscribe(msg) {
-    if (typeof CLIENT[msg.unique] == 'undefined') return;
+    if (typeof vm.CLIENT[msg.unique] == 'undefined') return;
         
     db.loadDatabase();
     var result;
@@ -159,50 +154,49 @@ function processUnsubscribe(msg) {
             msg.params[i].token = result[0].subscribtion.token
         }
     }
-    CLIENT[msg.unique].Unsubscribe(msg);
+    vm.CLIENT[msg.unique].Unsubscribe(msg);
 }
 
 function processPublish(msg) {
-    if (typeof CLIENT[msg.unique] == 'undefined') return;
-    msg.params.deliveryId = delivery[msg.unique].getToken();
+    if (typeof vm.CLIENT[msg.unique] == 'undefined') return;
+    msg.params.deliveryId = vm.delivery[msg.unique].getToken();
     msg.params.qos = ENUM.QoS.AT_LEAST_ONCE;
     msg.params.username = msg.username;
 
-    CLIENT[msg.unique].id = msg.username;
-    CLIENT[msg.unique].Publish(msg.params);
+    vm.CLIENT[msg.unique].id = msg.username;
+    vm.CLIENT[msg.unique].Publish(msg.params);
 }
 
 function processSocketopened(msg) {
-    CLIENT[msg.params.connection.unique] = new amqp();
-    CLIENT[msg.params.connection.unique].id = msg.params.connection.username;
-    CLIENT[msg.params.connection.unique].password = msg.params.connection.password;
-    CLIENT[msg.params.connection.unique].keepalive = msg.params.connection.keepalive;
-    CLIENT[msg.params.connection.unique].clientID = msg.params.connection.clientID;
-    username = msg.params.connection.clientID;
-    unique = msg.params.connection.unique;
-    CLIENT[msg.params.connection.unique].userInfo = msg.params.connection;
-    CLIENT[msg.params.connection.unique].unique = msg.params.connection.unique;
-    CLIENT[msg.params.connection.unique].isClean = msg.params.connection.isClean;
-    CLIENT[msg.params.connection.unique].params = msg.params;
-    delivery[msg.params.connection.unique] = new TOKENS();
+    vm.CLIENT[msg.params.connection.unique] = new amqp();
+    vm.CLIENT[msg.params.connection.unique].id = msg.params.connection.username;
+    vm.CLIENT[msg.params.connection.unique].password = msg.params.connection.password;
+    vm.CLIENT[msg.params.connection.unique].keepalive = msg.params.connection.keepalive;
+    vm.CLIENT[msg.params.connection.unique].clientID = msg.params.connection.clientID;
+    vm.username = msg.params.connection.clientID;
+    vm.CLIENT[msg.params.connection.unique].userInfo = msg.params.connection;
+    vm.CLIENT[msg.params.connection.unique].unique = msg.params.connection.unique;
+    vm.CLIENT[msg.params.connection.unique].isClean = msg.params.connection.isClean;
+    vm.CLIENT[msg.params.connection.unique].params = msg.params;
+    vm.delivery[msg.params.connection.unique] = new TOKENS();
 
 
-    connectTimeout = setTimeout(function () {
+    vm.connectTimeout = setTimeout(function () {
         connectionDone(null, 'amqp.disconnect', null)
     }, msg.params.connection.keepalive * 1000);
 }
 
 function processOnDataReceived(msg) {
-    if (typeof CLIENT[msg.unique] == 'undefined') return;
+    if (typeof vm.CLIENT[msg.unique] == 'undefined') return;
     var client = {
-        username: CLIENT[msg.unique].id,
-        password: CLIENT[msg.unique].password,
-        keepalive: CLIENT[msg.unique].keepalive,
-        clientID: CLIENT[msg.unique].clientID,
-        isClean: CLIENT[msg.unique].isClean,
-        unique: CLIENT[msg.unique].unique
+        username: vm.CLIENT[msg.unique].id,
+        password: vm.CLIENT[msg.unique].password,
+        keepalive: vm.CLIENT[msg.unique].keepalive,
+        clientID: vm.CLIENT[msg.unique].clientID,
+        isClean: vm.CLIENT[msg.unique].isClean,
+        unique: vm.CLIENT[msg.unique].unique
     }
-    CLIENT[msg.unique].onDataRecieved(Buffer.from(msg.payload), client);
+    vm.CLIENT[msg.unique].onDataRecieved(Buffer.from(msg.payload), client);
 }
 
 module.exports = methods;

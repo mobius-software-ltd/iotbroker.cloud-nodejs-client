@@ -44,21 +44,18 @@ var TOKENS = require('./lib/Tokens');
 var Datastore = require('nedb');
 var db = new Datastore({ filename: 'data' });
 var dbUser = new Datastore({ filename: 'userData' });
-var pendingMessages = [];
-var parser = require('./parser/AMQPParser')
-var isSaslConfirm = null;
-var channel = null;
-var idleTimeout = null;
-var account = {};
 var ENUM = require('./lib/enum');
-var usedOutgoingMappings = {};
-var usedOutgoingHandles = {};
-var usedIncomingMappings = {};
-var usedIncomingHandles = {};
-
+var parser = require('./parser/AMQPParser')
 
 var vm = this;
+vm.isSaslConfirm = null;
+vm.pendingMessages = [];
+vm.channel = null;
+vm.idleTimeout = null;
+vm.usedOutgoingMappings = {};
+vm.usedOutgoingHandles = {};
 vm.tokens = {};
+
 var bus = require('servicebus').bus({
     queuesFile: `.queues.amqp.${process.pid}`
 });
@@ -96,9 +93,9 @@ var Store = function Store() {
 		pushMessage: pushMessage
 	}
 };
-var messages = Store();
-var subscribtions = Store();
-var unsubscribtions = Store();
+vm.messages = Store();
+vm.subscribtions = Store();
+vm.unsubscribtions = Store();
 
 function connect(params, connectTimeout) {	
 	vm.unique = params.unique;
@@ -126,7 +123,7 @@ function connect(params, connectTimeout) {
 function disconnect() {
 	try {
 		var end = new AMQPEnd();
-		end.setChannel(channel)
+		end.setChannel(vm.channel)
 		var result = parser.encode(end)
 	} catch (e) {
 		console.log(e)
@@ -141,7 +138,7 @@ function subscribe(topics) {
 			topics[i].token = vm.tokens[vm.unique].getToken();
 			var currentHandler = topics[i].token;
 			var attach = new AMQPAttach();
-			attach.setChannel(channel);
+			attach.setChannel(vm.channel);
 			attach.setName(topics[i].topic);
 			attach.setHandle(currentHandler);
 			attach.setRole(ENUM.RoleCode.RECEIVER);
@@ -153,7 +150,7 @@ function subscribe(topics) {
 			target.setDynamic(false);
 			attach.setTarget(target);
 			var result = parser.encode(attach)		
-			subscribtions.pushMessage(currentHandler, topics[i])
+			vm.subscribtions.pushMessage(currentHandler, topics[i])
 			sendData(result, 0, 'amqp.subscribe');
 		}
 	} catch (e) {
@@ -166,11 +163,11 @@ function unsubscribe(data) {
 		for (var i = 0; i < data.params.length; i++) {
 			var incomingHandle = data.params[i].token;
 			var detach = new AMQPDetach();
-			detach.setChannel(channel);
+			detach.setChannel(vm.channel);
 			detach.setClosed(true);
 			detach.setHandle(incomingHandle);
 			var result = parser.encode(detach)
-			unsubscribtions.pushMessage(incomingHandle, data.params[i]);
+			vm.unsubscribtions.pushMessage(incomingHandle, data.params[i]);
 			sendData(result, 0, 'amqp.unsubscribe'); 
 		}
 	} catch (e) {
@@ -181,10 +178,10 @@ function unsubscribe(data) {
 
 function publish(params) {	
 	params.token = vm.tokens[vm.unique].getToken();
-	messages.pushMessage(params.deliveryId, params);
+	vm.messages.pushMessage(params.deliveryId, params);
 	var deliveryId = params.deliveryId
 	var transfer = new AMQPTransfer();
-	transfer.setChannel(channel);
+	transfer.setChannel(vm.channel);
 	transfer.setDeliveryId(params.deliveryId);
 	if (params.qos == ENUM.QoS.AT_MOST_ONCE)
 		transfer.setSettled(true);
@@ -206,8 +203,8 @@ function publish(params) {
 		transfer.setSections(sections);
 	} catch (e) { console.log(e) }
 
-	if (usedOutgoingMappings[params.topic]) {
-		var handle = usedOutgoingMappings[params.topic]
+	if (vm.usedOutgoingMappings[params.topic]) {
+		var handle = vm.usedOutgoingMappings[params.topic]
 		transfer.setHandle(handle);
 		if(transfer.getSettled()) {
 			connectionDone(transfer.getDeliveryId())
@@ -224,12 +221,12 @@ function publish(params) {
 	} else {
 		try {
 			var currentHandler = vm.tokens[vm.unique].getToken();
-			usedOutgoingMappings[params.topic] = currentHandler;
-			usedOutgoingHandles[currentHandler] = params.topic;
+			vm.usedOutgoingMappings[params.topic] = currentHandler;
+			vm.usedOutgoingHandles[currentHandler] = params.topic;
 			transfer.setHandle(currentHandler);
-			pendingMessages.push(transfer);
+			vm.pendingMessages.push(transfer);
 			var attach = new AMQPAttach();
-			attach.setChannel(channel);
+			attach.setChannel(vm.channel);
 			attach.setName(params.topic);
 			attach.setHandle(currentHandler);
 			attach.setRole(ENUM.RoleCode.SENDER);
@@ -326,8 +323,8 @@ function onDataRecieved(data, client) {
 			var transfer = decoded;
 			var desposition = processTransfer(transfer.getData(), transfer.getHandle(), transfer.getSettled(), transfer.getDeliveryId());			
 			var topic = ''
-			if(usedOutgoingHandles[transfer.getHandle()])
-			 topic = usedOutgoingHandles[transfer.getHandle()]
+			if(vm.usedOutgoingHandles[transfer.getHandle()])
+			 topic = vm.usedOutgoingHandles[transfer.getHandle()]
 
 			var qos = transfer.getSettled() ? ENUM.QoS.AT_MOST_ONCE : ENUM.QoS.AT_LEAST_ONCE;
 
@@ -381,7 +378,7 @@ function processSASLOutcome(outcomeCode) {
 	try {
 		if (outcomeCode != null)
 			if (outcomeCode == ENUM.OutcomeCode.OK) {
-				isSaslConfirm = true;
+				vm.isSaslConfirm = true;
 				var header = new AMQPProtoHeader();
 				header.setProtocolId(0);
 				header.setVersionMajor(1);
@@ -399,13 +396,13 @@ function processProto(channel, protocolId, client) {
 	var result = null;
 	try {
 
-		if (isSaslConfirm && protocolId == 0) {
-			channel = channel;
+		if (vm.isSaslConfirm && protocolId == 0) {
+			vm.channel = channel;
 
 			var open = new AMQPOpen()
 			open.setIdleTimeout(client.keepalive * 1000);
 			open.setContainerId(client.clientID);
-			open.setChannel(channel);
+			open.setChannel(vm.channel);
 			result = parser.encode(open)
 		}
 	} catch (e) {
@@ -418,10 +415,10 @@ function processFlow() {
 }
 function processOpen(timeout, client) {
 	if (timeout)
-		idleTimeout = timeout
+		vm.idleTimeout = timeout
 	try {
 		var begin = new AMQPBegin();
-		begin.setChannel(channel);
+		begin.setChannel(vm.channel);
 		begin.setNextOutgoingId(0);
 		begin.setIncomingWindow(2147483647);
 		begin.setOutgoingWindow(0);
@@ -488,7 +485,7 @@ function processBegin(client, that) {
 function processEnd() {
 	try {
 		var close = new AMQPClose();
-		close.setChannel(channel);
+		close.setChannel(vm.channel);
 		var result = parser.encode(close)
 	} catch (e) {
 		console.log(e)
@@ -514,13 +511,13 @@ function processAttach(attach, obj) {
 	var realHandle = null;
 	if (role != null) {
 		if (ENUM.RoleCode[role]) {
-		realHandle = usedOutgoingMappings[name];
+		realHandle = vm.usedOutgoingMappings[name];
 
-		if (realHandle && pendingMessages.length) {
-			for (var i = 0; i < pendingMessages.length; i++) {
-				var currMessage = pendingMessages[i];
+		if (realHandle && vm.pendingMessages.length) {
+			for (var i = 0; i < vm.pendingMessages.length; i++) {
+				var currMessage = vm.pendingMessages[i];
 				if (currMessage.handle == realHandle) {
-					pendingMessages.splice(i, 1);
+					vm.pendingMessages.splice(i, 1);
 					i--;
 					if(currMessage.getSettled()) {
 						connectionDone(currMessage.getDeliveryId())
@@ -534,7 +531,7 @@ function processAttach(attach, obj) {
 			}
 		} else {
 			try {
-				processSuback(attach, subscribtions.pullMessage(handle), self)
+				processSuback(attach, vm.subscribtions.pullMessage(handle), self)
 			}
 			catch (e) {
 				console.log("An error occured while saving topic, " + e);
@@ -547,11 +544,11 @@ function processDisposition(self, first, last, client) {
 	if (first) {
 		if (last) {
 			for (var i = first; i < last; i++) {
-				processDispositionIN(messages.pullMessage(i), i, client)
+				processDispositionIN(vm.messages.pullMessage(i), i, client)
 			}
 		}
 		else {
-			processDispositionIN(messages.pullMessage(first), first, client)
+			processDispositionIN(vm.messages.pullMessage(first), first, client)
 
 		}
 	}
@@ -565,7 +562,7 @@ function processTransfer(data, handle, settled, deliveryId) {
 	else {
 		try {
 			var disposition = new AMQPDisposition();
-			disposition.setChannel(channel);
+			disposition.setChannel(vm.channel);
 			disposition.setRole(ENUM.RoleCode.RECEIVER);
 			disposition.setFirst(deliveryId);
 			disposition.setLast(deliveryId);

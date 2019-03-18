@@ -26,7 +26,7 @@
             privateKey: null
         };
         vm.connect = connect;
-
+      
         init();         
 
         function connect(user) {

@@ -28,17 +28,13 @@ var bus = require('servicebus').bus({
 var cluster = require('cluster');
 var numCPUs = args[0] || require('os').cpus().length;
 
-var TOKENS = require('./lib/Tokens');
 var TIMERS = require('./lib/Timers');
 var Timer = require('./lib/Timer');
 
 var Datastore = require('nedb');
 var db = new Datastore({ filename: 'data' });
-var connections = {};
-var connectionParams = {};
-var timers = {};
-var tokens = {};
-var unique;
+var vm = this;
+
 if (cluster.isMaster) {
     if (!module.parent) {
         for (var i = 0; i < numCPUs; i++) {
@@ -46,13 +42,17 @@ if (cluster.isMaster) {
         }
     }
 } else {
+    vm.connections = {};
+    vm.connectionParams = {};
+    vm.timers = {};
+
     setTimeout(function () {
 
         bus.listen('amqp.newSocket', function (msg) {
-            unique = msg.params.connection.unique;
+            vm.unique = msg.params.connection.unique;
 
-            bus.listen('amqp.sendData' + unique, function (msg) { sendData(msg) });
-            bus.listen('amqp.done' + unique, function (msg) { connectionDone(msg) });
+            bus.listen('amqp.sendData' + vm.unique, function (msg) { sendData(msg) });
+            bus.listen('amqp.done' + vm.unique, function (msg) { connectionDone(msg) });
 
             createSocket(msg);
         });
@@ -70,26 +70,26 @@ function createSocket(msg) {
                     cert: msg.params.connection.certificate,
                     passphrase: msg.params.connection.privateKey
                 };
-                connections[msg.params.connection.unique] = tls.connect(msg.params.connection.port, msg.params.connection.host, options);
+                vm.connections[msg.params.connection.unique] = tls.connect(msg.params.connection.port, msg.params.connection.host, options);
             } else {
-                connections[msg.params.connection.unique] = tls.connect(msg.params.connection.port, msg.params.connection.host);
+                vm.connections[msg.params.connection.unique] = tls.connect(msg.params.connection.port, msg.params.connection.host);
             }
         } else {
-            connections[msg.params.connection.unique] = net.createConnection(msg.params.connection.port, msg.params.connection.host);
+            vm.connections[msg.params.connection.unique] = net.createConnection(msg.params.connection.port, msg.params.connection.host);
         }
 
-        connections[msg.params.connection.unique].username = msg.params.connection.username;
-        connections[msg.params.connection.unique].unique = msg.params.connection.unique;
-        connections[msg.params.connection.unique].connection = msg.params.connection;
+        vm.connections[msg.params.connection.unique].username = msg.params.connection.username;
+        vm.connections[msg.params.connection.unique].unique = msg.params.connection.unique;
+        vm.connections[msg.params.connection.unique].connection = msg.params.connection;
 
-        connections[msg.params.connection.unique].on('data', function onDataReceived(data) {
-                bus.send('amqp.dataReceived' + unique, {
+        vm.connections[msg.params.connection.unique].on('data', function onDataReceived(data) {
+                bus.send('amqp.dataReceived' + vm.unique, {
                     payload: data,
                     username: this.username,
                     unique: this.unique
                 });
             });
-            connections[msg.params.connection.unique].on('error', function(e) {
+            vm.connections[msg.params.connection.unique].on('error', function(e) {
                socketEndOnError(e, msg.params.connection.unique, msg.packetID);
                return;
             })        
@@ -97,31 +97,31 @@ function createSocket(msg) {
         socketEndOnError(e, msg.params.connection.unique, msg.packetID);       
         return;
     }
-    connectionParams[msg.params.connection.unique] = msg;
-    timers[msg.params.connection.unique] = new TIMERS();
-    bus.send('amqp.socketOpened' + unique, msg);
+    vm.connectionParams[msg.params.connection.unique] = msg;
+    vm.timers[msg.params.connection.unique] = new TIMERS();
+    bus.send('amqp.socketOpened' + vm.unique, msg);
 }
 
 function sendData(msg) {
-    if (typeof connections[msg.unique] == 'undefined') return;
+    if (typeof vm.connections[msg.unique] == 'undefined') return;
     if (msg.parentEvent == 'amqp.publish' || msg.parentEvent == 'amqp.pingreq') {
         var newTimer = Timer({
             callback: function () {
                 try {
-                    if (!connections[msg.unique]) return;
-                    connections[msg.unique].write(Buffer.from(msg.payload));
+                    if (!vm.connections[msg.unique]) return;
+                    vm.connections[msg.unique].write(Buffer.from(msg.payload));
                 } catch (e) {
                     socketEndOnError(e, msg.unique, msg.packetID);                    
                     return;
                 }
             },
-            interval: connections[msg.unique].connection.keepalive * 1000
+            interval: vm.connections[msg.unique].connection.keepalive * 1000
         });
 
-        timers[msg.unique].setTimer(msg.packetID, newTimer);
+        vm.timers[msg.unique].setTimer(msg.packetID, newTimer);
     }
     try {
-        connections[msg.unique].write(Buffer.from(msg.payload));
+        vm.connections[msg.unique].write(Buffer.from(msg.payload));
     } catch (e) {
         socketEndOnError(e, msg.unique, msg.packetID);        
         return;
@@ -129,16 +129,16 @@ function sendData(msg) {
 }
 
 function connectionDone(msg) {
-    if (typeof timers[msg.unique] == 'undefined') return;
-    timers[msg.unique].releaseTimer(msg.packetID);
+    if (typeof vm.timers[msg.unique] == 'undefined') return;
+    vm.timers[msg.unique].releaseTimer(msg.packetID);
 
     if (msg.parentEvent == 'amqp.disconnect') {
         db.loadDatabase();
         db.remove({ type: 'connack', unique: msg.unique })
-        connections[msg.unique].end();
-        delete connections[msg.unique];
-        delete timers[msg.unique];
-        delete connectionParams[msg.unique];
+        vm.connections[msg.unique].end();
+        delete vm.connections[msg.unique];
+        delete vm.timers[msg.unique];
+        delete vm.connectionParams[msg.unique];
     }
 }
 
@@ -146,14 +146,14 @@ function socketEndOnError(e, unique, packetID) {
     console.log('Unable to establish connection to the server. Error: ', e);
     db.loadDatabase();
     db.remove({ type: 'connack', unique: unique })
-    if (typeof timers[unique] != 'undefined') {
-        timers[unique].releaseTimer(packetID);
-        delete timers[unique];
+    if (typeof vm.timers[unique] != 'undefined') {
+        vm.timers[unique].releaseTimer(packetID);
+        delete vm.timers[unique];
     }
-    if (typeof connections[unique] != 'undefined') {
-        connections[unique].end();
-        delete connections[unique];
+    if (typeof vm.connections[unique] != 'undefined') {
+        vm.connections[unique].end();
+        delete vm.connections[unique];
     }
-    if (typeof connectionParams[unique] != 'undefined')
-        delete connectionParams[unique];
+    if (typeof vm.connectionParams[unique] != 'undefined')
+        delete vm.connectionParams[unique];
 }
