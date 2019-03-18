@@ -251,12 +251,27 @@ function publish(params) {
 
 function onDataRecieved(data, client) {
 
-	var decoded = {};
+	var decoded = {};	
 	try {
-		decoded = parser.decode(data);
-	} catch (error) {
+		var part = '';
+		var received = '';
+		while (received.length<data.length) {
+			var index = 0
+			part = parser.next(data);
+			index += part.length;
+			received += part;
+			data = data.slice(index)
+		
+			decoded = parser.decode(part);
+		}
+	} catch(e) {
 		console.log('Parser unadble to decode received data.');
 	}
+	// try {
+	// 	decoded = parser.decode(data);
+	// } catch (error) {
+	// 	console.log('Parser unadble to decode received data.');
+	// }
 	
 
 	switch (decoded.getCode()) {

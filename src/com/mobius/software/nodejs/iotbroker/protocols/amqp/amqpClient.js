@@ -196,6 +196,7 @@ function processOnDataReceived(msg) {
         isClean: vm.CLIENT[msg.unique].isClean,
         unique: vm.CLIENT[msg.unique].unique
     }
+  
     vm.CLIENT[msg.unique].onDataRecieved(Buffer.from(msg.payload), client);
 }
 

@@ -50,7 +50,7 @@ var AMQPParser = {
 
 function next(buf) {
     var index = 0
-    var length = buf.readUInt32BE(index);
+    var length = buf.readUInt32BE(index) & 0xffffffff;
     index += 4;
     if (length == 1095586128) {
         var protocolId = buf.readUInt8(index);
@@ -63,12 +63,13 @@ function next(buf) {
         index++
         if ((protocolId == 0 || protocolId == 3) && versionMajor == 1 && versionMinor == 0 && versionRevision == 0) {
             index = 0;
-            return Buffer.allocUnsafeSlow(8);
+            return buf.slice(0, 8)//Buffer.allocUnsafeSlow(8);
         }
     }
     index = 0;
-    return Buffer.allocUnsafeSlow(length);
+    return buf//Buffer.allocUnsafeSlow(length);
 };
+
 function decode(buf) {
     var index = 0
     var length = buf.readUInt32BE(index) & 0xffffffff; // & 0xffffffffL;   
