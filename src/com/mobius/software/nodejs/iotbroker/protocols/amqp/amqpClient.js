@@ -34,7 +34,7 @@ var Timer = require('./lib/Timer');
 var bus = require('servicebus').bus({
     queuesFile: `.queues.amqp-client.${process.pid}`
 });
-
+var vm = this;
 var amqp = require('./amqp.js')
 var ENUM = require('./lib/enum')
 const cluster = require('cluster');
@@ -54,7 +54,6 @@ if (cluster.isMaster) {
 } else {
     var connections = {};
     var timers = {};
-    var tokens = {};
     var db = new Datastore({ filename: 'data' });
     var CLIENT = {};
     var tokens = {};
@@ -78,7 +77,7 @@ if (cluster.isMaster) {
                 bus.listen('amqp.publish' + unique, function (msg) { processPublish(msg) });
                 bus.listen('amqp.socketOpened'  + unique, function (msg) { processSocketopened(msg)     
 
-                  CLIENT[msg.params.connection.unique].Connect(msg.params.connection, tokens[msg.params.connection.unique], connectTimeout);
+                  CLIENT[msg.params.connection.unique].Connect(msg.params.connection, connectTimeout);
                     
                 });
         
@@ -133,10 +132,11 @@ function processDisconnect(msg) {
 
 function processSubscribe(msg) {
     if (typeof CLIENT[msg.unique] == 'undefined') return;
-                   
+    
     for (var i = 0; i < msg.params.topics.length; i++) {
-        msg.params.topics[i].token = tokens[msg.unique].getToken();
         msg.params.topics[i].qos = ENUM.QoS.AT_LEAST_ONCE;
+        msg.params.topics[i].clientID = msg.params.clientID,
+        msg.params.topics[i].username = msg.username
     }
     CLIENT[msg.unique].Subscribe(msg.params.topics);
 }
@@ -164,9 +164,9 @@ function processUnsubscribe(msg) {
 
 function processPublish(msg) {
     if (typeof CLIENT[msg.unique] == 'undefined') return;
-    msg.params.token = tokens[msg.unique].getToken();
     msg.params.deliveryId = delivery[msg.unique].getToken();
     msg.params.qos = ENUM.QoS.AT_LEAST_ONCE;
+    msg.params.username = msg.username;
 
     CLIENT[msg.unique].id = msg.username;
     CLIENT[msg.unique].Publish(msg.params);
@@ -180,10 +180,10 @@ function processSocketopened(msg) {
     CLIENT[msg.params.connection.unique].clientID = msg.params.connection.clientID;
     username = msg.params.connection.clientID;
     unique = msg.params.connection.unique;
+    CLIENT[msg.params.connection.unique].userInfo = msg.params.connection;
     CLIENT[msg.params.connection.unique].unique = msg.params.connection.unique;
     CLIENT[msg.params.connection.unique].isClean = msg.params.connection.isClean;
     CLIENT[msg.params.connection.unique].params = msg.params;
-    tokens[msg.params.connection.unique] = new TOKENS();
     delivery[msg.params.connection.unique] = new TOKENS();
 
 

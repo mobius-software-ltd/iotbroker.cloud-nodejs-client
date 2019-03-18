@@ -28,7 +28,6 @@ var bus = require('servicebus').bus({
 var cluster = require('cluster');
 var Connect = require('./lib/SNconnect');
 const dgram = require('dgram');
-var udp = dgram.createSocket('udp4');
 var numCPUs = args[0] || require('os').cpus().length;
 var parser = require('./SNParser');
 var dtls = require('nodejs-dtls');
@@ -71,6 +70,7 @@ if (cluster.isMaster) {
 }
 
 function createSocket(msg) {
+   connections[msg.params.connection.unique] = dgram.createSocket('udp4');  
     host = msg.params.connection.host;
     port = msg.params.connection.port;
     vm.port = msg.params.connection.port;
@@ -85,24 +85,24 @@ function createSocket(msg) {
     var oldUnique = vm.unique;
     vm.clientID = msg.params.connection.clientID || 'MQTT-SN-' + Math.random().toString(18).substr(2, 16);
     vm.unique = msg.params.connection.unique;
-
-    if (typeof oldUnique != 'undefined') {
-        if(typeof timers[oldUnique] != 'undefined') {
-            timers[oldUnique].releaseTimer(-1);
-            timers[oldUnique].releaseTimer(-2);
-        }
-        // tokens[oldUnique].releaseToken(data.getPacketID());
-        delete timers[oldUnique];
-        delete connections[oldUnique];
-        delete connectionParams[oldUnique];
-        delete tokens[oldUnique];
-        oldUnique = undefined;
-        connections = {};
-        connectionParams = {};
-        timers = {};
-        tokens = {};
-        udp = dgram.createSocket('udp4');
-    }
+    // if (typeof oldUnique != 'undefined') {
+    //     console.log('delete all')
+    //     if(typeof timers[oldUnique] != 'undefined') {
+    //         timers[oldUnique].releaseTimer(-1);
+    //         timers[oldUnique].releaseTimer(-2);
+    //     }
+    //     // tokens[oldUnique].releaseToken(data.getPacketID());
+    //     delete timers[oldUnique];
+    //     delete connections[oldUnique];
+    //     delete connectionParams[oldUnique];
+    //     delete tokens[oldUnique];
+    //     oldUnique = undefined;
+    //     connections = {};
+    //     connectionParams = {};
+    //     timers = {};
+    //     tokens = {};
+    //     udp = dgram.createSocket('udp4');
+    // }
 
     if (vm.secure) {          
         var certificate = null;
@@ -140,16 +140,16 @@ function createSocket(msg) {
         }        
         dns.lookup(vm.host, function (err, address, family) {
             var options = {
-                socket: udp,
+                socket: connections[msg.params.connection.unique],
                 remotePort: vm.port,
                 remoteAddress: address,
                 certificate: certificate,
                 certificatePrivateKey: privateKey,
             }
             try { 
-                udp = dtls.connect(options);
+                connections[msg.params.connection.unique] = dtls.connect(options);
                 if (typeof oldUnique == 'undefined') {
-                    udp.on('data', function onDataReceived(data) {
+                    connections[msg.params.connection.unique].on('data', function onDataReceived(data) {
                         bus.send('sn.datareceived' + unique, {
                             payload: data,
                             clientID: vm.clientID,
@@ -163,13 +163,12 @@ function createSocket(msg) {
         })
     }
 
-    udp.clientID = msg.params.connection.clientID;
-    udp.unique = msg.params.connection.unique;
-    udp.connection = msg.params.connection;
+    connections[msg.params.connection.unique].clientID = msg.params.connection.clientID;
+    connections[msg.params.connection.unique].unique = msg.params.connection.unique;
+    connections[msg.params.connection.unique].connection = msg.params.connection;
 
-    if (typeof oldUnique == 'undefined') {
         if (!vm.secure) {
-            udp.on('message', function onDataReceived(data, rinfo) {
+            connections[msg.params.connection.unique].on('message', function onDataReceived(data, rinfo) {
                 bus.send('sn.datareceived' + unique, {
                     payload: data,
                     clientID: vm.clientID,
@@ -177,8 +176,6 @@ function createSocket(msg) {
                 });
             });            
         }
-
-    }
 
     try {
         var connect = Connect({
@@ -212,7 +209,6 @@ function createSocket(msg) {
         console.log('Unable to establish connection to the server. Error: ', e);
     }
     connectionParams[msg.params.connection.unique] = msg;
-    connections[msg.params.connection.unique] = udp;
     timers[msg.params.connection.unique] = new TIMERS();
 }
 
@@ -237,10 +233,10 @@ function sendData(msg) {
                     var message = Buffer.from(msg.payload)
                     if (vm.secure) {
                         if (connections[msg.unique])
-                        udp.write(message);
+                        connections[msg.unique].write(message);
                     } else {
                         if (connections[msg.unique])
-                        udp.send(message, vm.port, vm.host, function (err) {
+                        connections[msg.unique].send(message, vm.port, vm.host, function (err) {
                         });
                     }
                 } catch (e) {
@@ -261,9 +257,9 @@ function sendData(msg) {
     }
     try {
         if (vm.secure) {
-            udp.write(Buffer.from(msg.payload));
+            connections[msg.unique].write(Buffer.from(msg.payload));
         } else {
-            udp.send(Buffer.from(msg.payload), vm.port, vm.host, function (err) {
+            connections[msg.unique].send(Buffer.from(msg.payload), vm.port, vm.host, function (err) {
             });
         }
 
@@ -273,7 +269,7 @@ function sendData(msg) {
     }
 }
 
-function connectionDone(msg) {
+function connectionDone(msg) {  
     if (msg.parentEvent == 'snconnack') {
         timers[msg.unique].releaseTimer(-1);
     }

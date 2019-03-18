@@ -49,6 +49,7 @@ var TIMERS = require('./lib/Timers');
 
 var Datastore = require('nedb');
 var db = new Datastore({ filename: 'data' });
+var dbUser = new Datastore({ filename: 'userData' });
 var bus = require('servicebus').bus({
     queuesFile: `.queues.ws.${process.pid}`
 });
@@ -215,7 +216,7 @@ function onDataRecieved(data) {
 
     if (packet == ENUM.MessageType.CONNACK) {
         //this.emit('wsConnack', resp);
-        processConnack(resp)
+        processConnack(resp, this)
     }
 
     if (packet == ENUM.MessageType.PINGRESP) {
@@ -338,10 +339,10 @@ function saveMessage(msg) {
             topic: msg.topic,
             qos: msg.qos,
             content: msg.content,
-            connectionId: username,
+            connectionId:  msg.username || username,
             direction: msg.direction || 'in',
             unique: unique,
-            clientID: thisClientID
+            clientID: msg.clientID || thisClientID
         },
         id: guid(),
         time: (new Date()).getTime()
@@ -367,7 +368,7 @@ function processDisconnect(data, id) {
     delete tokens[unique];
 }
 
-function processConnack(data) {
+function processConnack(data, client) {
     var that = this;
 
     connectionDone(1, 'wsConnack');
@@ -379,6 +380,8 @@ function processConnack(data) {
                 unique: unique,
                 id: guid()
             });
+            dbUser.loadDatabase();
+			dbUser.insert(client.userInfo);
         ping();
     } 
 }
@@ -394,21 +397,21 @@ function processPublish(data, msg, packetID, parent) {
 
 function processPuback(id, msg) {
     connectionDone(id, 'wsPuback');
-    tokens[unique].releaseToken(id);
+  //  tokens[unique].releaseToken(id);
     msg.params.direction = 'out';
     saveMessage(msg.params);
 };
 
 function processPubcomp(packetID, msg) {
     connectionDone(packetID, 'wsPubcomp');
-    tokens[unique].releaseToken(packetID);
+   // tokens[unique].releaseToken(packetID);
     msg.params.direction = 'out';
     saveMessage(msg.params);
 }
 
 function processSuback(data, msg) {
     connectionDone(data.payload.data.packetID, 'wsSuback');
-    tokens[unique].releaseToken(data.payload.data.packetID);
+  //  tokens[unique].releaseToken(data.payload.data.packetID);
     var subscribtions = [];
     db.loadDatabase();
     if (msg.topics)
@@ -419,6 +422,7 @@ function processSuback(data, msg) {
                     topic: msg.topics[i].topic ? msg.topics[i].topic : null,
                     qos: msg.topics[i].qos ? msg.topics[i].qos : null,
                     connectionId: msg.username,
+                    clientID: msg.clientID
                 },
             }
             subscribtions.push(subscribeData);
@@ -430,7 +434,7 @@ function processSuback(data, msg) {
 function processUnsuback(packetID, msg) {
     connectionDone(packetID, 'wsUnsuback');
     db.loadDatabase();
-    tokens[unique].releaseToken(packetID);
+   // tokens[unique].releaseToken(packetID);
     db.remove({ 'type': 'wssubscribtion', 'subscribtion.topic': msg }, { multi: true });
 }
 

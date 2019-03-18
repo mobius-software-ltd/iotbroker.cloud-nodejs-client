@@ -111,13 +111,12 @@
             var def = $q.defer();
             $http.post(mqttConstants.API_SERVER_URL + mqttConstants.API_SUBSCRIBE_URL, params)
                 .then(function (data) {
-                    def.resolve(data);
-                    if(data.data.length)
+                    def.resolve(data);                  
                      toastr.success('Successfully subscribed!');
-                     else
-                     toastr.error('Subscribe error!');
+                     
                 })
                 .catch(function (data) {
+                    toastr.error('Subscribe error!');
                     console.log(data);
                 });
             return def.promise;

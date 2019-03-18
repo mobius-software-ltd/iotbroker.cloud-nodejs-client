@@ -26,7 +26,6 @@ var bus = require('servicebus').bus({
 });
 var cluster = require('cluster');
 var dgram = require('dgram');
-var udp = dgram.createSocket('udp4');
 var dtls = require('nodejs-dtls');
 var forge = require('node-forge');
 var dns = require('dns');
@@ -80,6 +79,7 @@ if (cluster.isMaster) {
 }
 
 function createSocket(msg) {
+    connections[msg.params.connection.unique] = dgram.createSocket('udp4');  
     vm.port = msg.params.connection.port;
     vm.host = msg.params.connection.host;
     vm.secure = msg.params.connection.secure
@@ -87,23 +87,23 @@ function createSocket(msg) {
 
     var oldUniqueCoap = vm.unique;
     vm.unique = msg.params.connection.unique;
-    if (typeof oldUniqueCoap != 'undefined') {
-        if(typeof timers[oldUniqueCoap] != 'undefined') {
-        timers[oldUniqueCoap].releaseTimer(-1);
-        }
-        // tokens[oldUniqueCoap].releaseToken(data.getPacketID());
-        delete timers[oldUniqueCoap];
-        delete connections[oldUniqueCoap];
-        delete connectionParams[oldUniqueCoap];
-        delete tokens[oldUniqueCoap];
-       // udp.close()
-        oldUniqueCoap = undefined;
-        connections = {};
-        connectionParams = {};
-        timers = {};
-        tokens = {};
-        udp = dgram.createSocket('udp4');
-    }
+    // if (typeof oldUniqueCoap != 'undefined') {
+    //     if(typeof timers[oldUniqueCoap] != 'undefined') {
+    //     timers[oldUniqueCoap].releaseTimer(-1);
+    //     }
+    //     // tokens[oldUniqueCoap].releaseToken(data.getPacketID());
+    //     delete timers[oldUniqueCoap];
+    //     delete connections[oldUniqueCoap];
+    //     delete connectionParams[oldUniqueCoap];
+    //     delete tokens[oldUniqueCoap];
+    //    // udp.close()
+    //     oldUniqueCoap = undefined;
+    //     connections = {};
+    //     connectionParams = {};
+    //     timers = {};
+    //     tokens = {};
+    //     udp = dgram.createSocket('udp4');
+    // }
 
     if (vm.secure) {
         var certificate = null;
@@ -138,7 +138,7 @@ function createSocket(msg) {
         }
         dns.lookup(vm.host, function (err, address, family) {
             var options = {
-                socket: udp,
+                socket: connections[msg.params.connection.unique],
                 remotePort: vm.port,
                 remoteAddress: address,
                 certificate: certificate,
@@ -146,9 +146,9 @@ function createSocket(msg) {
                 // passphrase: msg.params.connection.privateKey
             }
             try {
-                udp = dtls.connect(options);
+                connections[msg.params.connection.unique] = dtls.connect(options);
                 if (typeof oldUniqueCoap == 'undefined') {
-                    udp.on('data', function onDataReceived(data) {
+                    connections[msg.params.connection.unique].on('data', function onDataReceived(data) {
                         bus.send('coap.datareceived' + unique, {
                             payload: data,
                             clientID: vm.clientID,
@@ -163,20 +163,17 @@ function createSocket(msg) {
         })
     }
 
-    udp.clientID = msg.params.connection.clientID;
-    udp.unique = msg.params.connection.unique;
-    udp.connection = msg.params.connection;
+    connections[msg.params.connection.unique].clientID = msg.params.connection.clientID;
+    connections[msg.params.connection.unique].unique = msg.params.connection.unique;
+    connections[msg.params.connection.unique].connection = msg.params.connection;
 
-    if (typeof oldUniqueCoap == 'undefined') {
         bus.send('coap.startping' + unique, {
             clientID: vm.clientID,
             unique: vm.unique
         });
-    }
 
-    if (typeof oldUniqueCoap == 'undefined') {
         if (!vm.secure) {
-            udp.on('message', function onDataReceived(data, rinfo) {
+            connections[msg.params.connection.unique].on('message', function onDataReceived(data, rinfo) {
                 bus.send('coap.datareceived' + unique, {
                     payload: data,
                     clientID: vm.clientID,
@@ -184,10 +181,8 @@ function createSocket(msg) {
                 });
             });           
         }
-    }
 
     connectionParams[msg.params.connection.unique] = msg;
-    connections[msg.params.connection.unique] = udp;
     timers[msg.params.connection.unique] = new TIMERS();
 }
 
@@ -203,9 +198,9 @@ function sendData(msg) {
                 try {
                     var message = Buffer.from(msg.payload)
                     if (vm.secure) {
-                        udp.write(message)
+                        connections[msg.unique].write(message)
                     } else {
-                        udp.send(message, vm.port, vm.host, function (err) {
+                        connections[msg.unique].send(message, vm.port, vm.host, function (err) {
                         });
                     }
                 } catch (e) {
@@ -224,9 +219,9 @@ function sendData(msg) {
     }
     try {
         if (vm.secure) {
-            udp.write(Buffer.from(msg.payload))
+            connections[msg.unique].write(Buffer.from(msg.payload))
         } else {
-            udp.send(Buffer.from(msg.payload), vm.port, vm.host, function (err) {
+            connections[msg.unique].send(Buffer.from(msg.payload), vm.port, vm.host, function (err) {
 
             });
         }

@@ -70,38 +70,34 @@ function createSocket(msg) {
                     cert: msg.params.connection.certificate,
                     passphrase: msg.params.connection.privateKey
                 };
-                var socket = tls.connect(msg.params.connection.port, msg.params.connection.host, options);
+                connections[msg.params.connection.unique] = tls.connect(msg.params.connection.port, msg.params.connection.host, options);
             } else {
-                var socket = tls.connect(msg.params.connection.port, msg.params.connection.host);
+                connections[msg.params.connection.unique] = tls.connect(msg.params.connection.port, msg.params.connection.host);
             }
         } else {
-            var socket = net.createConnection(msg.params.connection.port, msg.params.connection.host);
+            connections[msg.params.connection.unique] = net.createConnection(msg.params.connection.port, msg.params.connection.host);
         }
 
-        var oldUserName = socket.username;
-        socket.username = msg.params.connection.username;
-        socket.unique = msg.params.connection.unique;
-        socket.connection = msg.params.connection;
+        connections[msg.params.connection.unique].username = msg.params.connection.username;
+        connections[msg.params.connection.unique].unique = msg.params.connection.unique;
+        connections[msg.params.connection.unique].connection = msg.params.connection;
 
-        if (typeof oldUserName == 'undefined') {
-            socket.on('data', function onDataReceived(data) {
+        connections[msg.params.connection.unique].on('data', function onDataReceived(data) {
                 bus.send('amqp.dataReceived' + unique, {
                     payload: data,
                     username: this.username,
                     unique: this.unique
                 });
             });
-            socket.on('error', function(e) {
+            connections[msg.params.connection.unique].on('error', function(e) {
                socketEndOnError(e, msg.params.connection.unique, msg.packetID);
                return;
-            })
-        }
+            })        
     } catch (e) {
         socketEndOnError(e, msg.params.connection.unique, msg.packetID);       
         return;
     }
     connectionParams[msg.params.connection.unique] = msg;
-    connections[msg.params.connection.unique] = socket;
     timers[msg.params.connection.unique] = new TIMERS();
     bus.send('amqp.socketOpened' + unique, msg);
 }

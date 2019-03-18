@@ -87,8 +87,8 @@ function publish(a, b) {
 function getData(req, res) {
     db.loadDatabase();
     db.find(req, function(err, docs) {
-        if (!!err)
-            res.send({ 'Error:': err });
+        if (!!err) 
+            res.send({ 'Error:': err });                     
         res.send(JSON.stringify(docs));
     });
 }
@@ -145,7 +145,7 @@ function socketOpenedprocess(msg) {
     thisClientID = msg.params.connection.clientID 
     CLIENT[msg.params.connection.unique].unique = msg.params.connection.unique;  
     tokens[msg.params.connection.unique] = new TOKENS();
-  
+    CLIENT[msg.params.connection.unique].userInfo = msg.params.connection; 
     CLIENT[msg.params.connection.unique].Connect(msg.params.connection);
 }
 var methods = {

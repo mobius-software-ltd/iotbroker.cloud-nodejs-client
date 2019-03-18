@@ -51,7 +51,6 @@ if (cluster.isMaster) {
     var timers = {};
     var tokens = {};
     var db = new Datastore({ filename: 'data' });
-    var dbUsers = new Datastore({ filename: 'users' });
     var CLIENT = {};
    
     setTimeout(function () {
@@ -100,44 +99,23 @@ function connectionDone(packetID, parentEvent, token) {
     });
 }
 
-function processConnect(msg) {
-    dbUsers.loadDatabase();
-    dbUsers.find({
-        clientID: msg.params.connection.clientID,
-        port: msg.params.connection.port,
-        host: msg.params.connection.host,
-    }, function (err, docs) {               
-        if(docs.length) {
-            for(var i=0; i<docs.length; i++) {
-                process.send(docs[i]);
-                dbUsers.remove({ 'unique': docs[i].unique }, { multi: true });                      
-            }                 
-        }
-    });           
-  
-    bus.send('coapudp.newSocket', msg);
+function processConnect(msg) {     
+
+    bus.send('coapudp.newSocket', msg);    
     db.loadDatabase();
     db.remove({ 'type': 'connection', 'connection.clientID': msg.params.connection.clientID }, { multi: true });  
-    db.insert(msg.params);
-
-    CLIENT[msg.params.connection.unique] = new coap();
+    db.insert(msg.params);   
+    
+    CLIENT[msg.params.connection.unique] = new coap();   
+    CLIENT[msg.params.connection.unique].userInfo = msg.params.connection;
     CLIENT[msg.params.connection.unique].id = msg.params.connection.clientID;
     CLIENT[msg.params.connection.unique].unique = msg.params.connection.unique;
     CLIENT[msg.params.connection.unique].keepalive = msg.params.connection.keepalive;
     CLIENT[msg.params.connection.unique].qos = msg.params.connection.qos;
     tokens[msg.params.connection.unique] = new TOKENS();
-    thisClientID = msg.params.connection.clientID;
+    thisClientID = msg.params.connection.clientID;    
    
-    dbUsers.loadDatabase();
-    var user = {
-        type: 'coap',
-        worker: cluster.worker.process.pid,
-        unique: msg.params.connection.unique,
-        clientID: msg.params.connection.clientID,
-        port: msg.params.connection.port,
-        host: msg.params.connection.host,
-    }
-    dbUsers.insert(user);
+  
 } 
 
 function processSubscribe(msg) {    

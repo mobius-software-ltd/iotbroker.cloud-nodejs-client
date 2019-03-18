@@ -63,7 +63,7 @@ function createSocket(msg) {
         if (msg.params.connection.secure) {
             var urlString = "wss://" + msg.params.connection.host + ":" + msg.params.connection.port + '/ws';
             if (msg.params.connection.certificate) {
-                var socket = new WebSocketClient({
+                connections[msg.params.connection.unique] = new WebSocketClient({
                     tlsOptions: {
                         key: msg.params.connection.certificate,
                         cert: msg.params.connection.certificate,
@@ -71,24 +71,23 @@ function createSocket(msg) {
                     }
                 });
             } else {
-                var socket = new WebSocketClient()
+                connections[msg.params.connection.unique] = new WebSocketClient()
             }
         } else {
             var urlString = "ws://" + msg.params.connection.host + ":" + msg.params.connection.port + '/ws';
-            var socket = new WebSocketClient()
+            connections[msg.params.connection.unique] = new WebSocketClient()
         }
 
-        var oldUserName = socket.username;
-        socket.username = msg.params.connection.username;
-        socket.unique = msg.params.connection.unique;
-        socket.connection = msg.params.connection;
+       
+        connections[msg.params.connection.unique].username = msg.params.connection.username;
+        connections[msg.params.connection.unique].unique = msg.params.connection.unique;
+        connections[msg.params.connection.unique].connection = msg.params.connection;
 
-        if (typeof oldUserName == 'undefined') {
-            socket.on('connectFailed', function (error) {
+            connections[msg.params.connection.unique].on('connectFailed', function (error) {
                 console.log('Connect Error: ' + error.toString());
             });
 
-            socket.on('connect', function (connection) {
+            connections[msg.params.connection.unique].on('connect', function (connection) {
                 connections[msg.params.connection.unique] = connection;
                 connection.username = msg.params.connection.username;
                 connection.unique = msg.params.connection.unique;
@@ -103,9 +102,9 @@ function createSocket(msg) {
                 connection.on('close', function () {
                     bus.send('wss.done' + unique, {
                         // packetID: packetID,
-                        username: socket.username,
+                        username: connection.username,
                         parentEvent: 'wsDisconnect',
-                        unique: socket.unique
+                        unique: unique
                     });
                 });
 
@@ -118,8 +117,8 @@ function createSocket(msg) {
                 });
 
             });
-            socket.connect(urlString);
-        }
+            connections[msg.params.connection.unique].connect(urlString);
+        
 
     } catch (e) {
         socketEndOnError(e, msg.params.connection.unique, msg.packetID);       

@@ -75,6 +75,7 @@ var connections = {};
 var timers = {};
 var tokens = {};
 var db = new Datastore({ filename: 'data' });
+var dbUser = new Datastore({ filename: 'userData' });
 var CLIENT = {};
 var tokens = {};
 var pingTimeout = {};
@@ -143,7 +144,6 @@ function subscribe(params) {
     for (var i = 0; i < params.topics.length; i++) {
         topics.push(new FullTopic(params.topics[i].topic, params.topics[i].qos));
 
-        ///topics.push(SNwilltopic(new FullTopic(params.topics[i].topic, params.topics[i].qos),false));
     }
     var subscribe = SNsubscribe(params.token, topics[0]);
     try {
@@ -165,11 +165,12 @@ function unsubscribe(params) {
     var unsubscribe = SNunsubscribe(params.token, topics[0]);
     try {
         var encUnsubscribe = parser.encode(unsubscribe);
+        unsubscribtions.pushMessage(params.token, topics);
+        sendData(encUnsubscribe, params.token, 'snunsubscribe', encUnsubscribe.topicID);
     } catch (e) {
         console.log('Parser can`t encode provided params.');
     }
-    unsubscribtions.pushMessage(params.token, topics);
-    sendData(encUnsubscribe, params.token, 'snunsubscribe', encUnsubscribe.topicID);
+  
 }
 
 
@@ -187,6 +188,7 @@ function register(params) {
     } catch (error) {
         console.log('Parser can`t encode provided params.');
     }
+    messages.pushMessage(packetID, params.params);
     processRegister(encRegister, packetID, this)
 }
 
@@ -235,7 +237,6 @@ function topicUpdate(params) {
     }
 
     messages.pushMessage(params.token, params);
-   // this.emit('sntopicupd', enctopicUpd, params, params.token);
 };
 
 function msgUpdate(params) {
@@ -247,7 +248,6 @@ function msgUpdate(params) {
     }
 
     messages.pushMessage(params.token, params);
-   // this.emit('snmsgupd', encmsgUpd, params, params.token);
 }
 
 function onDataRecieved(data, unique, thisClientID, tokens) {   
@@ -272,17 +272,16 @@ function onDataRecieved(data, unique, thisClientID, tokens) {
     }
 
     if (decoded.getType() == ENUM.MessageType.SN_CONNACK) {
-       
-        processConnack(decoded, vm.thisClientID)
+        processConnack(decoded, vm.thisClientID, this)
     }
 
     if (decoded.getType() == ENUM.MessageType.SN_REGACK) {
-        processRegack(decoded, this);
+        processRegack(decoded, this,  messages.pullMessage(decoded.getPacketID()));
 
     }
 
     if (decoded.getType() == ENUM.MessageType.SN_PUBACK) {
-        processPuback(decoded, this);
+        processPuback(decoded, this, messages.pullMessage(decoded.getPacketID()));
     }
 
     if (decoded.getType() == ENUM.MessageType.SN_PUBREC) {
@@ -386,6 +385,7 @@ function onDataRecieved(data, unique, thisClientID, tokens) {
             case 2:
                 var encPublishPubrec = parser.encode(SNpubrec(id));
                 processPubrecout(encPublishPubrec, message, this)
+                
                 messages.pushMessage(id, message)
                 break;
             default:
@@ -421,7 +421,7 @@ function sendData(payload, packetID, parentEvent, topicID) {
     }    
 }
 
-function connectionDone(packetID, parentEvent) {
+function connectionDone(packetID, parentEvent) {  
     try {
         bus.send('udp.done' + vm.unique, {
             clientID: vm.thisClientID,
@@ -441,7 +441,7 @@ function saveMessage(msg) {
                 topic: msg.topic || '',
                 qos: msg.qos,
                 content: msg.content || '',
-                connectionId: vm.thisClientID,
+                connectionId: msg.clientID || vm.thisClientID,
                 direction: msg.direction || 'in',
                 unique: vm.unique,
                 packetID: msg.packetID || '',
@@ -455,7 +455,7 @@ function saveMessage(msg) {
     } catch(e) {console.log(e) }   
 }
 
-function processConnack(data, id) {
+function processConnack(data, id, client) {
     connectionDone(null, 'snconnack');
     db.loadDatabase();
     if (data.getCode() == 'ACCEPTED') {
@@ -465,14 +465,13 @@ function processConnack(data, id) {
                 unique: vm.unique,
                 id: guid()
             });
+            dbUser.loadDatabase();
+            dbUser.insert(client.userInfo);
         ping(id);
     } 
 }
 
 function processRegister(data, packetID, client) {
-    if (client.publish.params.qos == 0) {
-       vm.tokens.releaseToken(packetID);
-    }
     sendData(data, null, 'snregister');
 }
 
@@ -483,21 +482,20 @@ function processWillTopic(client) {
 }
 
 function processUnsuback(data, msg) {
+    try {
     connectionDone(data.getPacketID(), 'snunsuback');
     db.loadDatabase();
-   vm.tokens.releaseToken(data.getPacketID());
     for (var i = 0; i < msg.length; i++) {
         db.remove({ 'type': 'snsubscribtion', 'subscribtion.topic': msg[i].getTopic() }, { multi: true });
     }
+    } catch(e) {
+        console.log(e)
+}
+
 }
 
 function processSuback(data, msg) {
     connectionDone(data.getPacketID(), 'snsuback');   
-    try {
-        vm.tokens.releaseToken(data.getPacketID());
-    } catch(e) {
-        console.log(e)
-    }
     var subscribtions = [];
     db.loadDatabase();
     for (var i = 0; i < msg.topics.length; i++) {
@@ -512,7 +510,7 @@ function processSuback(data, msg) {
             },
         }
         subscribtions.push(subscribeData);
-        db.remove({ 'type': 'subscribtion', 'subscribtion.topic': msg.topics[i].topic }, { multi: true });
+        db.remove({ 'type': 'snsubscribtion', 'subscribtion.topic': msg.topics[i].topic, 'subscribtion.connectionId': msg.clientID }, { multi: true });
     }
     db.insert(subscribtions);
 }
@@ -523,12 +521,13 @@ function processWillmsg(client) {
     sendData(message, null, 'snwillmsg');
 }
 
-function processRegack(data, client) {
-    var pub = client.publish.params
+function processRegack(data, client, message) {
+    try {
+    var pub = message;
 
     pub.packetID = data.getPacketID();
     pub.topicID = data.getTopicID()
-    try {
+    
         client.Publish(pub);
     } catch(e) {
         console.log(e)
@@ -537,39 +536,38 @@ function processRegack(data, client) {
 
 function processPublish(data, params, client) {
     var parentEvent = 'snpublish';
-
-    if (client.publish.params.qos == 0) {
+    if (params.qos == 0) {
         parentEvent = 'snpublishQos0';
     }
     sendData(data, params.packetID, parentEvent);
-    if (client.publish.params.qos == 0) {
-        var msg = client.publish.params;
-        msg.direction = 'out'
-        
+    if (params.qos == 0) {
+        var msg = params;
+        msg.direction = 'out'       
         saveMessage(msg);
         connectionDone(null, 'snpubcomp');
     }
 }
 
-function processPuback(data, client) {
+function processPuback(data, client, message) {
     connectionDone(data.getPacketID(), 'snpuback');
-   vm.tokens.releaseToken(data.getPacketID());
+  // vm.tokens.releaseToken(data.getPacketID());
     if (data.getCode() == ENUM.ReturnCode.SN_ACCEPTED_RETURN_CODE) {
-        var msg = client.publish.params;
-        msg.direction = 'out'
+        var msg = message;
+        msg.direction = 'out';
         saveMessage(msg);
     }
 }
 
-function processPubcomp(client, data) {
+function processPubcomp(client, data, message) {
     connectionDone(data.getPacketID(), 'snpubcomp');
-   vm.tokens.releaseToken(data.getPacketID());
+  // vm.tokens.releaseToken(data.getPacketID());
     var msg = client.publish.params;
     msg.direction = 'out';
     saveMessage(msg);
 }
 
 function processPublishin(data) {
+   
     if (!data) return;
     if (data.qos == 0) {
         db.loadDatabase();
@@ -605,19 +603,7 @@ function processPubrecout(data, msg, client) {
 
 function processPubcompout(data, msg, client) {
     if (!data) return;
-    var packetID = msg.getPacketID();
+    
     sendData(data, msg.getPacketID(), 'snpubcompout');
-    var id = this.id;
-    db.loadDatabase();
-    db.find({
-        'subscribtion.topicID': parseInt(client.topic.topic)
-    }, function (err, docs) {
-
-        if (docs.length) {
-            var packet = client.topic;
-            packet.topicID = client.topic.topic;
-            packet.topic = docs[0].subscribtion.topic
-            saveMessage(packet);
-        }
-    });
+    saveMessage(messages.pullMessage(msg.getPacketID()))    
 } 

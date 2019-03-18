@@ -4,11 +4,16 @@
         <img class="exit" src="img/ic_action_exit.png" alt="exit" ng-click="indxCtrl.exit()">
     </div>
     <div class="topics-content topicRemove">
-        <div class="topics-item clearfix" ng-repeat="item in Ctrl.topics" popover-trigger="'outsideClick'" uib-popover-template="deletePopover.templateUrl" popover-title="{{deletePopover.title}}">
+        <div class="topics-item clearfix" ng-repeat="item in Ctrl.topics">
             <!--{{item}}-->
-            <p class="topics-title col-xs-9">{{item.topic}}</p>
+            <p class="topics-title col-xs-8">{{item.topic}}</p>            
             <div class="col-xs-3 clearfix">
                 <div class="topics-qos text-center">QOS: {{item.qos}}</div>
+            </div>
+            <div class="col-xs-1 buttonRemove">
+                <button type="button" title="Unsubscribe" ng-click="Ctrl.deleteItem(item)" class="btn iotBtn iotBtn-rounded ">
+                    <img class="img-responsive" ng-src="img/delete_topic_icon.png">
+                </button>
             </div>
         </div>
     </div>
@@ -21,3 +26,5 @@
         </div>
     </div>    
 </div>
+
+<navigation></navigation>

@@ -62,7 +62,7 @@ if (cluster.isMaster) {
 }
 
 function createSocket(msg) {    
-    try {
+    try {       
         if (msg.params.connection.secure) {            
             if (msg.params.connection.certificate) {
                 const options = {
@@ -70,38 +70,35 @@ function createSocket(msg) {
                     cert: msg.params.connection.certificate,
                     passphrase: msg.params.connection.privateKey
                 };                        
-                socket = tls.connect(msg.params.connection.port, msg.params.connection.host, options);
+                connections[msg.params.connection.unique] = tls.connect(msg.params.connection.port, msg.params.connection.host, options);
             } else {
-                socket = tls.connect(msg.params.connection.port, msg.params.connection.host);
+                connections[msg.params.connection.unique] = tls.connect(msg.params.connection.port, msg.params.connection.host);
             }
         } else {
-             socket = net.createConnection(msg.params.connection.port, msg.params.connection.host);
+            connections[msg.params.connection.unique] = net.createConnection(msg.params.connection.port, msg.params.connection.host);
           
             }
 
-        var oldUserName = socket.username;
-        socket.username = msg.params.connection.username;
-        socket.unique = msg.params.connection.unique;
-        socket.connection = msg.params.connection;
-        if (typeof oldUserName == 'undefined') {
-            socket.on('data', function onDataReceived(data) {
+        connections[msg.params.connection.unique].username = msg.params.connection.username;
+        connections[msg.params.connection.unique].unique = msg.params.connection.unique;
+        connections[msg.params.connection.unique].connection = msg.params.connection;
+         
+        connections[msg.params.connection.unique].on('data', function onDataReceived(data) {
                 bus.send('mqtt.dataReceived' + unique, {
                     payload: data,
-                    username: socket.username,
-                    unique: socket.unique
+                    username: connections[msg.params.connection.unique].username,
+                    unique: connections[msg.params.connection.unique].unique
                 });
             });
-            socket.on('error', function(e) {
+            connections[msg.params.connection.unique].on('error', function(e) {
                 socketEndOnError(e, msg.params.connection.unique, msg.packetID);
                return;
             })
-        }
     } catch (e) {
         socketEndOnError(e, msg.params.connection.unique, msg.packetID);       
         return;
     }
     connectionParams[msg.params.connection.unique] = msg;
-    connections[msg.params.connection.unique] = socket;
     timers[msg.params.connection.unique] = new TIMERS();
     bus.send('mqtt.socketOpened' + unique, msg);
 };

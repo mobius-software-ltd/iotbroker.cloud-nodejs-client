@@ -530,7 +530,7 @@ function encode(header) {
 
         case ENUM.MessageType.SN_PUBLISH:
             var publish = header;
-            var bytesFlag = FLAGS.encodeFlags(publish.isDup(), publish.getTopic().getQos(), publish.isRetain(), false, false, publish.getTopic().getType());
+            var bytesFlag = FLAGS.encodeFlags(publish.isDup(), publish.getTopic().getQos(), publish.isRetain(), false, false, publish.getTopic().getType());                 
              index = buf.writeUInt8(bytesFlag, index);
             index = buf.writeUInt16BE(publish.getTopic().getTopic(), index);
             index = buf.writeUInt16BE(publish.getPacketID(), index);
@@ -630,20 +630,21 @@ function encode(header) {
 }
 
 function getBuffer(length) {
-    var lengthBytes;
-    if (length <= 255)
-        lengthBytes = 0;
-    else
-        lengthBytes = 2;
+    var lengthBytes = 0;
+    // if (length <= 255)
+    //     lengthBytes = 0;
+    // else
+    //     lengthBytes = 2;
 
     var bufferSize = lengthBytes + length;
     var buf = Buffer.alloc(bufferSize);
+    var ind = 0
     var pos = 1;
     if (length <= 255)
         buf.writeUInt8(length);
     else {
-        buf.writeUInt8(0x01);
-        buf.writeUInt16BE(length);
+        ind = buf.writeUInt8(0x01);
+        buf.writeUInt16BE(length, ind);
         pos = 3;
     }
 

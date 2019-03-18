@@ -23,12 +23,12 @@ var Tokens = function Tokens() {
     tokens[0] = 0;
 
     this.releaseToken = function(token) {
-          var i = tokens.indexOf(token);
+          var i = tokens.indexOf(token);        
           if (i == -1) throw Error('Token not exist!');
          delete tokens[i];
         if (tokens.length - 1 == i)
             tokens.length--;
-
+           
     };
 
     this.getToken = function() {
@@ -42,7 +42,7 @@ var Tokens = function Tokens() {
                     })(t);
                     break;
                 }
-            }
+            }           
             if (t >= 65535)
                 throw Error('No free tokens left!');
         } else {

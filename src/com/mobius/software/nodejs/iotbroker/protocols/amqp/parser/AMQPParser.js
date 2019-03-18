@@ -79,30 +79,35 @@ function decode(buf) {
     index++;
     var channel = buf.readUInt16BE(index) & 0xffff;
     index += 2;
-   
+
     // TODO check condition
-    if (length == 8 && doff == 2 && (type == 0 || type == 1) && channel == 0)
+    if (length == 8 && doff == 2 && (type == 0 || type == 1) && channel == 0) {
         if (buf.length - index == 0){
             return new AMQPPing();
         }            
         else
             throw new Error("Received malformed ping-header with invalid length");
-
+    }
+      
     // PTOROCOL-HEADER
-    if (length == 1095586128 && (doff == 3 || doff == 0) && type == 1 && channel == 0)  {
+    try {
+        if (length == 1095586128 && (doff == 3 || doff == 0) && type == 1 && channel == 0)  {           
+            if (buf.length - index == 0) {       
+                var proto = new AMQPProtoHeader(doff);             
+                var protocolId = buf.readUInt8(4)               
+                proto.setProtocolId(protocolId)    
+                proto.setChannel(channel) 
+                return proto
+            }            
+            else
+                throw new Error("Received malformed protocol-header with invalid length");
+        } 
+    } catch (e) {
+        console.log(e)
+    }
+    
        
-        if (buf.length - index == 0) {           
-            var proto = new AMQPProtoHeader(doff);             
-            var protocolId = buf.readUInt8(4) 
-            proto.setProtocolId(protocolId)    
-            proto.setChannel(channel) 
-            return proto
-        }            
-        else
-            throw new Error("Received malformed protocol-header with invalid length");
-    } 
-       
-         
+
     // if (length != buf.length - index + 8)
     //     throw new Error("Received malformed header with invalid length");
 
@@ -118,7 +123,7 @@ function decode(buf) {
     } else {
         throw new Error("Received malformed header with invalid type: " + type);
     }
-    
+
     try {
         header.setDoff(doff);
         header.setType(type);

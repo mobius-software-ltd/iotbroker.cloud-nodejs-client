@@ -40,9 +40,10 @@ var AMQPData = require('./parser/sections/AMQPData');
 var AMQPSource = require('./parser/terminus/AMQPSource');
 var AMQPDisposition = require('./parser/header/impl/AMQPDisposition')
 var AMQPAccepted = require('./parser/tlv/impl/AMQPAccepted')
-
+var TOKENS = require('./lib/Tokens');
 var Datastore = require('nedb');
 var db = new Datastore({ filename: 'data' });
+var dbUser = new Datastore({ filename: 'userData' });
 var pendingMessages = [];
 var parser = require('./parser/AMQPParser')
 var isSaslConfirm = null;
@@ -57,6 +58,7 @@ var usedIncomingHandles = {};
 
 
 var vm = this;
+vm.tokens = {};
 var bus = require('servicebus').bus({
     queuesFile: `.queues.amqp.${process.pid}`
 });
@@ -98,11 +100,11 @@ var messages = Store();
 var subscribtions = Store();
 var unsubscribtions = Store();
 
-function connect(params, tokens, connectTimeout) {	
+function connect(params, connectTimeout) {	
 	vm.unique = params.unique;
 	vm.username = params.username;
 	vm.connectTimeout = connectTimeout
-	vm.tokens = tokens; 
+	vm.tokens[vm.unique] = new TOKENS() // token; 
 	try {
 		var header = new AMQPProtoHeader();
 		header.setProtocolId(3);
@@ -136,6 +138,7 @@ function disconnect() {
 function subscribe(topics) {
 	try {
 		for (var i = 0; i < topics.length; i++) {
+			topics[i].token = vm.tokens[vm.unique].getToken();
 			var currentHandler = topics[i].token;
 			var attach = new AMQPAttach();
 			attach.setChannel(channel);
@@ -149,9 +152,8 @@ function subscribe(topics) {
 			target.setTimeout(0);
 			target.setDynamic(false);
 			attach.setTarget(target);
-			var result = parser.encode(attach)
+			var result = parser.encode(attach)		
 			subscribtions.pushMessage(currentHandler, topics[i])
-
 			sendData(result, 0, 'amqp.subscribe');
 		}
 	} catch (e) {
@@ -178,6 +180,7 @@ function unsubscribe(data) {
 }
 
 function publish(params) {	
+	params.token = vm.tokens[vm.unique].getToken();
 	messages.pushMessage(params.deliveryId, params);
 	var deliveryId = params.deliveryId
 	var transfer = new AMQPTransfer();
@@ -220,7 +223,7 @@ function publish(params) {
 		
 	} else {
 		try {
-			var currentHandler = vm.tokens.getToken();
+			var currentHandler = vm.tokens[vm.unique].getToken();
 			usedOutgoingMappings[params.topic] = currentHandler;
 			usedOutgoingHandles[currentHandler] = params.topic;
 			transfer.setHandle(currentHandler);
@@ -449,21 +452,22 @@ function processBegin(client, that) {
 				connectionId: id,
 				id: guid()
 			});
+			dbUser.loadDatabase();
+			dbUser.insert(that.userInfo);
 		// });
 		that.params.type = 'amqp.connection';
 		db.insert(that.params);
 
 		var topics = []
-		var unique = client.unique
+		var unique = that.unique;
 		db.find({
 			type: 'amqp.subscribtion',
 			'subscribtion.connectionId': client.username,
 			'subscribtion.clientID': client.clientID,
 		}, function (err, docs) {
 			if (docs) {
-				for (var i = 0; i < docs.length; i++) {
+				for (var i = 0; i < docs.length; i++) {					
 					if (docs[i]) {
-						docs[i].subscribtion.token = vm.tokens.getToken();
 						topics.push(docs[i].subscribtion)
 					}
 				}
@@ -506,7 +510,7 @@ function processAttach(attach, obj) {
 	var self = obj;
 	var name = attach.getName();
 	var role = attach.getRole();
-	var handle = attach.getHandle();
+	var handle = attach.getHandle();	
 	var realHandle = null;
 	if (role != null) {
 		if (ENUM.RoleCode[role]) {
@@ -600,20 +604,19 @@ function connectionDone(packetID, parentEvent, payload) {
 }
 
 function processSuback(data, msg, client) {	
-	if (!data) return;
+	if (!data) return;	
 	connectionDone(0, 'amqp.suback', data);
 	var subscribtions = [];
 	var clientID = client.clientID;
 	var username = client.id;
 	db.loadDatabase();
-
 	var subscribeData = {
 		type: 'amqp.subscribtion',
 		subscribtion: {
 			topic: msg.topic,
 			qos: msg.qos,
-			connectionId: username,
-			clientID: clientID,
+			connectionId: msg.username || username,
+			clientID: msg.clientID || clientID,
 			token: msg.token
 		},
 	}
@@ -630,7 +633,7 @@ function processUnsuback(token) {
 	db.remove({ 'type': 'amqp.subscribtion', 'subscribtion.token': token }, { multi: true });
 }
 
-function processDispositionIN(data, token, client) {	
+function processDispositionIN(data, token, message) {	
 	connectionDone(token, 'amqp.dispositionIN', null);
 	if (!data) return;
 	db.loadDatabase();
@@ -640,10 +643,10 @@ function processDispositionIN(data, token, client) {
 			topic: data.topic,
 			qos: data.qos,
 			content: data.content,
-			connectionId: client.username,
+			connectionId: data.username,
 			direction: 'out',
-			unique: client.unique,
-			clientID: client.clientID
+			unique: data.unique,
+			clientID: data.clientID
 		},
 		id: guid(),
 		time: (new Date()).getTime()
@@ -658,7 +661,7 @@ function processDispositionOUT(data, transfer, qos, topic, client) {
 	var token = transfer.getHandle();
 	var topicName = topic;
 	var id = client.username;
-	var unique = client.unique;
+	//var unique = client.unique;
 	var clientID = client.clientID;
 	db.loadDatabase();
 	db.find({

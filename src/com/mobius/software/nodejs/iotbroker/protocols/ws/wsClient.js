@@ -83,7 +83,12 @@ if (cluster.isMaster) {
 }
 
 function send(a, b) {
-    bus.send(a, b);
+    try {
+          bus.send(a, b);
+    } catch(e) {
+        console.log(e)
+    }
+  
 }
 
 function publish(a, b) {
@@ -138,6 +143,7 @@ function processSocketOpened(msg) {
     CLIENT[msg.params.connection.unique].id = msg.params.connection.username;
     username = msg.params.connection.username;
     thisClientID = msg.params.connection.clientID;
+    CLIENT[msg.params.connection.unique].userInfo = msg.params.connection;
     CLIENT[msg.params.connection.unique].unique = msg.params.connection.unique;
     tokens[msg.params.connection.unique] = new TOKENS();
 }

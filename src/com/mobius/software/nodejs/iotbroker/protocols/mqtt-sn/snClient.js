@@ -62,7 +62,12 @@ if (cluster.isMaster) {
 }
 
 function send(a, b) {
-    bus.send(a, b);
+    try{
+        bus.send(a, b);
+    } catch(e) {
+        console.log(e)
+    }
+   
 }
 
 function publish(a, b) {
@@ -87,7 +92,7 @@ function processConnect(msg) {
     CLIENT[msg.params.connection.unique] = new sn();
     CLIENT[msg.params.connection.unique].id = msg.params.connection.clientID;
     thisClientID = msg.params.connection.clientID;
-
+    CLIENT[msg.params.connection.unique].userInfo = msg.params.connection;
     CLIENT[msg.params.connection.unique].unique = msg.params.connection.unique;
     tokens[msg.params.connection.unique] = new TOKENS();
     if (msg.params.connection.will) {
@@ -126,13 +131,13 @@ function processPublish(msg) {
 }
 
 function  processSubscribe(msg) {
-    if (typeof CLIENT[msg.params.unique] == 'undefined') return;
+    if (typeof CLIENT[msg.params.unique] == 'undefined') return;   
     msg.params.token = tokens[msg.params.unique].getToken();
     CLIENT[msg.params.unique].Subscribe(msg.params);
 }
 
 function  processUnsubscribe(msg) {
-    if (typeof CLIENT[msg.unique] == 'undefined') return;
+    if (typeof CLIENT[msg.unique] == 'undefined') return;    
     msg.token = tokens[msg.unique].getToken();
     CLIENT[msg.unique].Unsubscribe(msg);
 }
@@ -146,7 +151,7 @@ function processDisconnect(msg) {
 }
 
 function processDataReceived(msg) {
-    if (typeof CLIENT[msg.unique] == 'undefined') return;
+    if (typeof CLIENT[msg.unique] == 'undefined') return;    
     CLIENT[msg.unique].onDataRecieved(Buffer.from(msg.payload), unique, thisClientID, tokens[msg.unique]);
 }
 var methods = {

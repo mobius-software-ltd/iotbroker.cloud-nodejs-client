@@ -36,8 +36,7 @@ var vm = this;
 var guid = require('./lib/guid');
 var Datastore = require('nedb');
 var db = new Datastore({ filename: 'data' });
-var dbUsers = new Datastore({ filename: 'users' });
-
+var dbUsersData = new Datastore({ filename: 'userData' });
 function COAPClient() {
     this.ENUM = ENUM;
     Events.EventEmitter.call(this);
@@ -212,10 +211,10 @@ function onDataRecieved(data) {
             if (ack.getCode() == ENUM.CoapCode.COAP_GET_METHOD) {
                 var observeOptionValue = ack.getOptionValue(ENUM.CoapOptionDefinitions.COAP_OBSERVE_OPTION);
                 var token = ack.getToken()
-
+                   
                 if (observeOptionValue == 0) {
-                     processSubackReceive(ack, token, this)
-                } else if (observeOptionValue == 1) {
+                     processSubackReceive(ack, token, this, subscribtions.pullMessage(token))
+                } else if (observeOptionValue == 1) {                  
                      db.loadDatabase();
                     db.remove({ 'type': 'coapsubscribtion', 'subscribtion.token': token }, { multi: true });
                 }
@@ -227,20 +226,20 @@ function onDataRecieved(data) {
                 var content = decoded.getPayload();
                 
                 db.loadDatabase();
-                db.remove({ type: 'connack', unique: vm.unique }, { multi: true }, function (err, docs) {
-                    db.insert({
-                        type: 'connack',
-                        unique: vm.unique,
-                        id: guid()
-                    });
-                });
-
-
-                processPubackReceived(token, this)
+                db.find({ type: 'connack', unique: vm.unique }, function (err, docs) {
+                    if (!docs.length) 
+                        db.insert({ type: 'connack', unique: vm.unique, id: guid() });
+                })
+                dbUsersData.loadDatabase();
+                dbUsersData.find({'unique': that.userInfo.unique}, function (err, docs) {
+                    if (!docs.length) 
+                        dbUsersData.insert(that.userInfo);
+                })
+                processPubackReceived(token, this, messages.pullMessage(token))
             }
             break;
         case ENUM.CoapTypes.COAP_RESET_TYPE:
-            connectionDone(null, 'coapackreceived', decoded.getToken());
+            connectionDone(null, 'coapackreceived', decoded.getToken());          
             break;
     }
 
@@ -281,9 +280,9 @@ function saveMessage(msg) {
                 topic: msg.topic || '',
                 qos: msg.qos,
                 content: msg.content || '',
-                connectionId: vm.thisClientID,
+                connectionId: msg.clientID || vm.thisClientID,
                 direction: msg.direction || 'in',
-                unique: vm.unique,
+                unique: msg.unique || vm.unique,
                 token: msg.token || ''
             },
             id: guid(),
@@ -302,29 +301,29 @@ function processPublishReceive(data) {
         topic: data.getOptionValue(ENUM.CoapOptionDefinitions.COAP_URI_PATH_OPTION),
         content: data.getPayload().toString(),
     }
+    msg.direction = "in"
     saveMessage(msg);
 };
 
-function processSubackReceive(data, token, client) {   
+function processSubackReceive(data, token, client, message) {        
     if (!token) return
     db.loadDatabase();
     var subscribeData = {
         type: 'coapsubscribtion',
         subscribtion: {
             token: token,
-            qos: client.subscribtion[token].qos,
-            topic: client.subscribtion[token].topics[0].topic,
-            connectionId: client.id,
-            unique: client.unique,
+            qos: message.topics[0].qos,
+            topic: message.topics[0].topic,
+            connectionId:  message.clientID || client.id,
+            unique: message.unique || client.unique,
         },
     }
     db.insert(subscribeData);
 }
 
-function processPubackReceived(token, client) {
+function processPubackReceived(token, client, message) {
     if (!token) return
-    var msg = client.publish[token];
-    msg.token = token;
+    var msg = message;
     msg.direction = 'out'
     saveMessage(msg)
 }

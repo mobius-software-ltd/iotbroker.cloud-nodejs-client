@@ -50,6 +50,7 @@ var TIMERS = require('./lib/Timers');
 
 var Datastore = require('nedb');
 var db = new Datastore({ filename: 'data' });
+var dbUser = new Datastore({ filename: 'userData' });
 var bus = require('servicebus').bus({
     queuesFile: `.queues.mqtt.${process.pid}`
 });
@@ -154,11 +155,11 @@ function publish(params) {
         token = tokens[unique].getToken();
     }
     try {
-        var publish = Publish(token, Topic(Text(params.topic), params.qos), new Buffer.from(params.content), params.retain, params.isDupe);
+        var publish = Publish(token, Topic(Text(params.topic), params.qos), new Buffer.from(params.content), params.retain, params.isDupe);      
         var encPublish = parser.encode(publish);
     } catch (error) {
         console.log('Parser can`t encode provided params.');
-    }
+    }   
     messages.pushMessage(token, params);
     processPublish(encPublish, params, token)
 }
@@ -207,7 +208,7 @@ function onDataRecieved(data) {
     }
 
     if (decoded.getType() == ENUM.MessageType.CONNACK) {      
-       processConnack(decoded, unique, username)
+       processConnack(decoded, unique, username, this)
     }
 
     if (decoded.getType() == ENUM.MessageType.PINGRESP) {
@@ -315,17 +316,17 @@ function connectionDone(packetID, parentEvent) {
     });
 }
 
-function saveMessage(msg) {    
+function saveMessage(msg) {  
     var message = {
         type: 'message',
         message: {
             topic: msg.topic,
             qos: msg.qos,
             content: msg.content,
-            connectionId: username,
+            connectionId:  msg.username || username,
             direction: msg.direction,
             unique: unique,
-            clientID: thisClientID
+            clientID: msg.clientID || thisClientID
         },
         id: guid(),
         time: (new Date()).getTime()
@@ -342,7 +343,7 @@ function publishDisconnect() {
     });
 }
 
-function processConnack(data, unique, username) {
+function processConnack(data, unique, username, client) {
     var that = this;
         connectionDone(data.getPacketID(), 'mqttConnack');  
 
@@ -354,6 +355,8 @@ function processConnack(data, unique, username) {
                     unique:unique,
                     id: guid()
                 });
+                dbUser.loadDatabase();
+                dbUser.insert(client.userInfo);
             ping();
         } 
 }
@@ -389,14 +392,12 @@ function processPublish(data, msg, packetID) {
 
 function processPuback(data, msg) {
     connectionDone(data.getPacketID(), 'mqttPuback');   
-        tokens[unique].releaseToken(data.getPacketID());
         msg.direction = 'out';
         saveMessage(msg);
 }
 
 function processPubcomp(data, msg) {
-    connectionDone(data.getPacketID(), 'mqttPubcomp');                
-    tokens[unique].releaseToken(data.getPacketID());
+    connectionDone(data.getPacketID(), 'mqttPubcomp');   
     msg.direction = 'out';
     saveMessage(msg);  
 }
@@ -413,11 +414,11 @@ function  processSuback(data, msg) {
                 topic: msg.topics[i].topic,
                 qos: msg.topics[i].qos,
                 connectionId: msg.username,
-                clientID: thisClientID
+                clientID: msg.clientID
             },
         }
         subscribtions.push(subscribeData);
-        db.remove({ 'type': 'subscribtion', 'subscribtion.topic': msg.topics[i].topic }, { multi: true });
+        db.remove({ 'type': 'subscribtion', 'subscribtion.topic': msg.topics[i].topic, 'connectionId': msg.username }, { multi: true });
     }
     db.insert(subscribtions);
 }
@@ -426,7 +427,6 @@ function processUnsuback(data, msg) {
     connectionDone(data.getPacketID(), 'mqttUnsuback');
        
     db.loadDatabase();
-    tokens[unique].releaseToken(data.getPacketID());
     for (var i = 0; i < msg.length; i++) {
         db.remove({ 'type': 'subscribtion', 'subscribtion.topic': msg[i] }, { multi: true });
     }

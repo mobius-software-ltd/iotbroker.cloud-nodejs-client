@@ -33,7 +33,7 @@ var wsClient = require('../protocols/ws/wsClient');
 var amqpClient = require('../protocols/amqp/amqpClient')
 var guid = require('../protocols/mqtt/lib/guid');
 var cluster = require('cluster');
-var numCPUs = require('os').cpus().length;
+var numCPUs = 2//require('os').cpus().length;
 var users = require('./routes/users');
 var check = require('./routes/check')
 var Datastore = require('nedb');
@@ -75,10 +75,9 @@ if (cluster.isMaster) {
     app.use('/check', check);
 
     app.post('/connect', function onConnect(req, res) {
-              
         db.loadDatabase();
         db.remove({'clientID': req.body.clientID, 'type.name': req.body.type.name }, { multi: true })
-        db.insert(req.body);
+       // db.insert(req.body);
 
         var currClient = req.body.type;
         currClient.name = currClient.name.toLowerCase();
@@ -129,7 +128,8 @@ if (cluster.isMaster) {
                     unique: req.body.unique,
                     secure: req.body.secure,
                     certificate: req.body.certificate,
-                    privateKey: req.body.privateKey
+                    privateKey: req.body.privateKey,
+                    type: req.body.type
                 },
                 id: guid()
             };
@@ -145,6 +145,10 @@ if (cluster.isMaster) {
             }
             if (typeof req.body.will.retain == 'undefined') {
                 res.status(400).send('Invalid request! Parameter "retain" in "will" mismatch.');
+                return;
+            }
+            if (req.body.will.content.length > 1400 && req.body.type.id == 2) {
+                res.status(400).send('Invalid request! Length of "content" in "will" limited to 1400.');
                 return;
             }
             try {
@@ -178,7 +182,7 @@ if (cluster.isMaster) {
                     params: connectionParams,
                 });
                 setTimeout(function () {
-                    snClient.getData({ type: 'connack', unique: req.body.unique }, res);
+                    snClient.getData({ type: 'connack', unique: req.body.unique }, res);                   
                 }, 500);
                 break;
             case 3:
@@ -291,6 +295,10 @@ if (cluster.isMaster) {
             res.status(400).send('Invalid request! Parameter "content" mismatch.');
             return;
         }
+        if (req.body.content.length > 1400 && (currClient.id == 2 || currClient.id == 3)) {
+            res.status(400).send('Invalid request! Length of "content" limited to 1400.');
+            return;
+        }
         if (!(req.body.qos >= 0 && req.body.qos < 3) && currClient.id != 3 && currClient.id != 4) {
             res.status(400).send('Invalid request! Parameter "qos" mismatch.');
             return;
@@ -309,7 +317,9 @@ if (cluster.isMaster) {
                 qos: parseInt(req.body.qos),
                 content: req.body.content,
                 retain: JSON.parse(req.body.retain),
-                isDupe: JSON.parse(req.body.isDupe)
+                isDupe: JSON.parse(req.body.isDupe),
+                clientID: req.body.clientID,
+                unique: req.body.unique
             };
         } catch (error) {
             res.status(400).send('Invalid request! Parameters mismatch.');
@@ -401,7 +411,7 @@ if (cluster.isMaster) {
             }
             setTimeout(function () {
                 snClient.getData({ type: 'snsubscribtion', 'subscribtion.unique': unique, 'subscribtion.topic': req.body.topics[0].topic }, res);
-            }, 500);
+            }, 1000);
         }
         if (currentProtocol == 3) {
             try {
@@ -562,24 +572,18 @@ if (cluster.isMaster) {
         if (currentProtocol == 2) {
             snClient.getData({
                 type: 'snmessage',
-                'message.direction': { $in: req.body.directions },
-                //'message.topic': { $in: req.body.topics },
                 'message.connectionId': req.body.clientID
             }, res);
         }
         if (currentProtocol == 3) {
             coapClient.getData({
                 type: 'coapmessage',
-                'message.direction': { $in: req.body.directions },
-                //'message.topic': { $in: req.body.topics },                
-                'message.unique': req.body.unique
+                'message.connectionId': req.body.clientID    
             }, res);
         }
         if (currentProtocol == 4) {
             amqpClient.getData({
-                type: 'amqp.message',
-                'message.direction': { $in: req.body.directions },
-                // 'message.topic': { $in: req.body.topics },
+                type: 'amqp.message',              
                 'message.connectionId': req.body.username,
                 'message.clientID': req.body.clientID
             }, res);
@@ -589,7 +593,8 @@ if (cluster.isMaster) {
                 type: 'wsmessage',
                 'message.direction': { $in: req.body.directions },
                 // 'message.topic': { $in: req.body.topics },
-                'message.connectionId': req.body.username
+                'message.connectionId': req.body.username,
+                'message.clientID': req.body.clientID
             }, res);
         }
     });
@@ -624,7 +629,8 @@ if (cluster.isMaster) {
         if (currentProtocol == 5) {
             wsClient.getData({
                 type: 'wssubscribtion',
-                'subscribtion.connectionId': req.body.username
+                'subscribtion.connectionId': req.body.username,
+                'subscribtion.clientID': req.body.clientID,
             }, res);
         }
 
