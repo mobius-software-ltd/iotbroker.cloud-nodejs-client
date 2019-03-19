@@ -33,12 +33,12 @@ var wsClient = require('../protocols/ws/wsClient');
 var amqpClient = require('../protocols/amqp/amqpClient')
 var guid = require('../protocols/mqtt/lib/guid');
 var cluster = require('cluster');
-var numCPUs = 2//require('os').cpus().length;
+var numCPUs = require('os').cpus().length;
 var users = require('./routes/users');
 var check = require('./routes/check')
 var Datastore = require('nedb');
 var db = new Datastore({ filename: 'userData' });
-
+var forge = require('node-forge');
 app.use(bodyParser.json());
 app.use(cors());
 app.use(function (err, req, res, next) {
@@ -113,6 +113,28 @@ if (cluster.isMaster) {
         if(req.body.secure && req.body.certificate && req.body.certificate.indexOf('ENCRYPTED') != -1 && !req.body.privateKey) {           
             res.status(400).send('Invalid request! Add "password" to your certificate');
             return;
+        }
+        if(req.body.secure && req.body.certificate && req.body.certificate.indexOf('ENCRYPTED') != -1 && (req.body.type.id == 2 ||  req.body.type.id == 3)) {
+            try {
+                var privateKey = '';
+                var arr = [];
+                var arrStr = [];
+                arr = req.body.certificate.split('-----BEGIN CERTIFICATE-----');
+                arr.forEach(function (str, index) {
+                    arrStr = str.split('-----END CERTIFICATE-----')
+                    if(arrStr[1]) {
+                        privateKey += arrStr[1]
+                    }   
+                })
+            var pki = forge.pki;               
+            var privateKeyPki = pki.decryptRsaPrivateKey(privateKey, req.body.privateKey);              
+            var pem = pki.privateKeyToPem(privateKeyPki);
+            privateKey = Buffer.from(pem, 'utf8') 
+          } catch(e) {
+            res.status(400).send('Invalid request! Bad "password" to your certificate');
+            return;
+          }
+           
         }
         try {
             var connectionParams = {

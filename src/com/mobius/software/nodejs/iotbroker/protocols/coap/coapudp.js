@@ -147,16 +147,13 @@ function createSocket(msg) {
             }
             try {
                 connections[msg.params.connection.unique] = dtls.connect(options);
-                if (typeof oldUniqueCoap == 'undefined') {
                     connections[msg.params.connection.unique].on('data', function onDataReceived(data) {
                         bus.send('coap.datareceived' + unique, {
                             payload: data,
                             clientID: vm.clientID,
                             unique: vm.unique
                         });
-
-                    })
-                }
+                    })                
             } catch (e) {
                 console.log(e)
             }

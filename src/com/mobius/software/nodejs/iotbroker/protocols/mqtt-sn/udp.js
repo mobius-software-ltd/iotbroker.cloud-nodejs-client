@@ -128,10 +128,10 @@ function createSocket(msg) {
             certificate = certificate.replace(/(?:\n)/g, '\r\n');
             certificate = Buffer.from(certificate, 'utf8');
             if(msg.params.connection.privateKey && msg.params.connection.certificate.indexOf('ENCRYPTED') != -1) {
-                var pki = forge.pki;
-                var privateKeyPki = pki.decryptRsaPrivateKey(privateKey, msg.params.connection.privateKey);
-                var pem = pki.privateKeyToPem(privateKeyPki);
-                privateKey = Buffer.from(pem, 'utf8') 
+                var pki = forge.pki;               
+                    var privateKeyPki = pki.decryptRsaPrivateKey(privateKey, msg.params.connection.privateKey);              
+                    var pem = pki.privateKeyToPem(privateKeyPki);
+                    privateKey = Buffer.from(pem, 'utf8') 
             } else {
                 privateKey = Buffer.from(privateKey, 'utf8')
             }
@@ -146,9 +146,8 @@ function createSocket(msg) {
                 certificate: certificate,
                 certificatePrivateKey: privateKey,
             }
-            try { 
-                connections[msg.params.connection.unique] = dtls.connect(options);
-                if (typeof oldUnique == 'undefined') {
+            try {   
+                connections[msg.params.connection.unique] = dtls.connect(options);            
                     connections[msg.params.connection.unique].on('data', function onDataReceived(data) {
                         bus.send('sn.datareceived' + unique, {
                             payload: data,
@@ -156,7 +155,6 @@ function createSocket(msg) {
                             unique: vm.unique
                         });
                     })
-                    }
             } catch (e) {
                 console.log(e)
             }
