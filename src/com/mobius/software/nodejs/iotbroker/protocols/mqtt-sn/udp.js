@@ -59,10 +59,10 @@ if (cluster.isMaster) {
     setTimeout(function () {
 
         bus.listen('udp.newSocket', function (msg) {           
-            unique = msg.params.connection.unique;
+            vm.unique = msg.params.connection.unique;
               
-            bus.listen('udp.senddata' + unique, function (msg) { sendData(msg); });
-            bus.listen('udp.done'  + unique, function (msg) { connectionDone(msg); });
+            bus.listen('udp.senddata' + vm.unique, function (msg) { sendData(msg); });
+            bus.listen('udp.done'  +  vm.unique, function (msg) { connectionDone(msg); });
 
             createSocket(msg);
         })
@@ -71,6 +71,7 @@ if (cluster.isMaster) {
 
 function createSocket(msg) {
    connections[msg.params.connection.unique] = dgram.createSocket('udp4');  
+   connectionParams[msg.params.connection.unique] = msg;
     host = msg.params.connection.host;
     port = msg.params.connection.port;
     vm.port = msg.params.connection.port;
@@ -81,28 +82,10 @@ function createSocket(msg) {
     } else {
         msg.params.connection.flag = 0;
     }
-    // var oldUnique=vm.clientID;
-    var oldUnique = vm.unique;
+   
     vm.clientID = msg.params.connection.clientID || 'MQTT-SN-' + Math.random().toString(18).substr(2, 16);
     vm.unique = msg.params.connection.unique;
-    // if (typeof oldUnique != 'undefined') {
-    //     console.log('delete all')
-    //     if(typeof timers[oldUnique] != 'undefined') {
-    //         timers[oldUnique].releaseTimer(-1);
-    //         timers[oldUnique].releaseTimer(-2);
-    //     }
-    //     // tokens[oldUnique].releaseToken(data.getPacketID());
-    //     delete timers[oldUnique];
-    //     delete connections[oldUnique];
-    //     delete connectionParams[oldUnique];
-    //     delete tokens[oldUnique];
-    //     oldUnique = undefined;
-    //     connections = {};
-    //     connectionParams = {};
-    //     timers = {};
-    //     tokens = {};
-    //     udp = dgram.createSocket('udp4');
-    // }
+    
 
     if (vm.secure) {          
         var certificate = null;
@@ -139,6 +122,7 @@ function createSocket(msg) {
            
         }        
         dns.lookup(vm.host, function (err, address, family) {
+          
             var options = {
                 socket: connections[msg.params.connection.unique],
                 remotePort: vm.port,
@@ -146,10 +130,10 @@ function createSocket(msg) {
                 certificate: certificate,
                 certificatePrivateKey: privateKey,
             }
-            try {   
+            try {                  
                 connections[msg.params.connection.unique] = dtls.connect(options);            
                     connections[msg.params.connection.unique].on('data', function onDataReceived(data) {
-                        bus.send('sn.datareceived' + unique, {
+                        bus.send('sn.datareceived' + vm.unique, {
                             payload: data,
                             clientID: vm.clientID,
                             unique: vm.unique
@@ -167,7 +151,7 @@ function createSocket(msg) {
 
         if (!vm.secure) {
             connections[msg.params.connection.unique].on('message', function onDataReceived(data, rinfo) {
-                bus.send('sn.datareceived' + unique, {
+                bus.send('sn.datareceived' + vm.unique, {
                     payload: data,
                     clientID: vm.clientID,
                     unique: vm.unique
@@ -195,7 +179,7 @@ function createSocket(msg) {
 
         vm.connectCount = 0;
         var message = parser.encode(connect);
-        bus.send('udp.senddata' + unique, {
+        bus.send('udp.senddata' + vm.unique, {
             payload: message,
             clientID: msg.params.connection.clientID,
             unique: msg.params.connection.unique,
@@ -206,7 +190,7 @@ function createSocket(msg) {
     } catch (e) {
         console.log('Unable to establish connection to the server. Error: ', e);
     }
-    connectionParams[msg.params.connection.unique] = msg;
+        
     timers[msg.params.connection.unique] = new TIMERS();
 }
 
@@ -215,9 +199,10 @@ function sendData(msg) {
         timers[msg.unique].releaseTimer(-1);
     }
 
-
     if (typeof connections[msg.unique] == 'undefined') return;
     if (msg.parentEvent != 'snpublishQos0' && msg.parentEvent != 'snregackout' && msg.parentEvent != 'snpubackout' && msg.parentEvent != 'snregister' && msg.parentEvent != 'sn.disconnect' && msg.parentEvent != 'sn.disconnectin' && msg.parentEvent != 'snpubackout' && msg.parentEvent != 'snpubrecout' && msg.parentEvent != 'snpubcompout' && msg.parentEvent != 'snwilltopic' && msg.parentEvent != 'snwillmsg') {
+      
+        try {
         var newTimer = Timer({
             callback: function () {
                 try {
@@ -242,8 +227,12 @@ function sendData(msg) {
                     return;
                 }
             },
-            interval: connections[msg.unique].connection.keepalive * 1000
+            interval: connectionParams[msg.unique].params.connection.keepalive * 1000
         });
+    } catch(e) { 
+         console.log(e)
+        }
+      
         if (msg.parentEvent == 'sn.connect') {
             timers[msg.unique].setTimer(-1, newTimer);
         } else if (msg.parentEvent == 'snpingreq') {
@@ -251,10 +240,10 @@ function sendData(msg) {
         } else if (msg.parentEvent == 'snpublish' || msg.parentEvent == 'snpubrel' || msg.parentEvent == 'snsubscribe' || msg.parentEvent == 'snunsubscribe') {
             timers[msg.unique].setTimer(msg.packetID, newTimer);
 
-        }
+       }
     }
     try {
-        if (vm.secure) {
+        if (vm.secure) {          
             connections[msg.unique].write(Buffer.from(msg.payload));
         } else {
             connections[msg.unique].send(Buffer.from(msg.payload), vm.port, vm.host, function (err) {

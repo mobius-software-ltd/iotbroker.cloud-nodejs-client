@@ -80,6 +80,7 @@ if (cluster.isMaster) {
 
 function createSocket(msg) {
     connections[msg.params.connection.unique] = dgram.createSocket('udp4');  
+    connectionParams[msg.params.connection.unique] = msg;
     vm.port = msg.params.connection.port;
     vm.host = msg.params.connection.host;
     vm.secure = msg.params.connection.secure
@@ -179,14 +180,13 @@ function createSocket(msg) {
             });           
         }
 
-    connectionParams[msg.params.connection.unique] = msg;
     timers[msg.params.connection.unique] = new TIMERS();
 }
 
 function sendData(msg) {
     if (typeof connections[msg.unique] == 'undefined') return;
     if (msg.parentEvent == 'coappingreq' || msg.parentEvent == 'coappublish' || msg.parentEvent == 'coapsubscribe' || msg.parentEvent == 'coapunsubscribe') {
-        var interval = connections[msg.unique].connection.keepalive * 1000;
+        var interval = connectionParams[msg.unique].params.connection.keepalive * 1000
         if (msg.parentEvent == 'coappublish') {
             interval = 3000;
         }
