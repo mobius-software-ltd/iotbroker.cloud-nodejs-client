@@ -47,7 +47,7 @@
 				},
 				function() {
                     vm.auth = $rootScope.auth;
-					
+                    $timeout.cancel( vm.timer);					
 				}
 			);
         }

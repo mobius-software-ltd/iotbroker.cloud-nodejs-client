@@ -356,6 +356,7 @@ function processConnack(data, unique, username, client) {
                     id: guid()
                 });
                 dbUser.loadDatabase();
+                dbUser.remove({'clientID': client.userInfo.clientID, 'type.name': client.userInfo.type.name }, { multi: true })
                 dbUser.insert(client.userInfo);
             ping();
         } 
@@ -404,7 +405,7 @@ function processPubcomp(data, msg) {
 
 function  processSuback(data, msg) {
     connectionDone(data.getPacketID(), 'mqttSuback'); 
-  
+    
     var subscribtions = [];
     db.loadDatabase();
     for (var i = 0; i < msg.topics.length; i++) {
@@ -418,7 +419,7 @@ function  processSuback(data, msg) {
             },
         }
         subscribtions.push(subscribeData);
-        db.remove({ 'type': 'subscribtion', 'subscribtion.topic': msg.topics[i].topic, 'connectionId': msg.username }, { multi: true });
+        db.remove({ 'type': 'subscribtion', 'subscribtion.topic': msg.topics[i].topic, 'subscribtion.connectionId': msg.username }, { multi: true });
     }
     db.insert(subscribtions);
 }

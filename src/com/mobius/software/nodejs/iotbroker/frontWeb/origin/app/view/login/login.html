@@ -13,10 +13,13 @@
                     <img ng-src="img/login_qos.png" />Protocol</label>
                 <div class="col-xs-6">
 
-                    <select class="form-control" ng-model="Ctrl.protocolType" required>
+                    <select class="form-control" name="protocolType" ng-model="Ctrl.protocolType" required>
                         <option selected value="{{item.id}}" ng-repeat="item in Ctrl.types">{{item.name}}</option>
-                    </select>
+                    </select>                    
                 </div>
+                <span class="text-danger" ng-show="(connect.$submitted || connect.protocolType.$touched) && connect.protocolType.$error.required">
+                    Protocol is required field
+                </span>
             </div>
         </div>
         <div ng-if="Ctrl.protocolType == 1 || Ctrl.protocolType == 4 || Ctrl.protocolType == 5" class="login-row form-group-lg">
@@ -24,8 +27,11 @@
                 <label for="" class="col-xs-6">
                     <img ng-src="img/login_user_name.png" />User name</label>
                 <div class="col-xs-6">
-                    <input type="text" class="form-control" placeholder="username" ng-model="Ctrl.login.username" required>
+                    <input type="text" class="form-control" placeholder="username" name="username" ng-model="Ctrl.login.username" required>
                 </div>
+                <span class="text-danger" ng-show="(connect.$submitted || connect.username.$touched) && connect.username.$error.required">
+                    Username is required field
+                </span>
             </div>
         </div>
         <div ng-if="Ctrl.protocolType == 1 || Ctrl.protocolType == 4 || Ctrl.protocolType == 5" class="login-row form-group-lg">
@@ -33,8 +39,11 @@
                 <label for="" class="col-xs-6">
                     <img ng-src="img/login_pass.png" />Password</label>
                 <div class="col-xs-6">
-                    <input type="password" class="col-xs-6 form-control" placeholder="Password" ng-model="Ctrl.login.password" required>
+                    <input type="password" class="col-xs-6 form-control" name="password" placeholder="Password" ng-model="Ctrl.login.password" required>
                 </div>
+                <span class="text-danger" ng-show="(connect.$submitted || connect.password.$touched) && connect.password.$error.required">
+                    Password is required field
+                </span>
             </div>
         </div>
 
@@ -43,8 +52,11 @@
                 <label for="" class="col-xs-6">
                     <img ng-src="img/login_clienid.png" />Client ID</label>
                 <div class="col-xs-6">
-                    <input type="text" class="col-xs-6 form-control" placeholder="Client ID" ng-model="Ctrl.login.clientID" required>
+                    <input type="text" class="col-xs-6 form-control" placeholder="Client ID" name="clientID" ng-model="Ctrl.login.clientID" required>
                 </div>
+                <span class="text-danger" ng-show="(connect.$submitted || connect.clientID.$touched) && connect.clientID.$error.required">
+                   ClientID is required field
+                </span>
             </div>
         </div>
 
@@ -53,8 +65,11 @@
                 <label for="" class="col-xs-6">
                     <img ng-src="img/login_server_host.png" />Server host</label>
                 <div class="col-xs-6">
-                    <input type="text" class="col-xs-6 form-control" placeholder="server host" ng-model="Ctrl.login.host" required>
+                    <input type="text" class="col-xs-6 form-control" name="host" placeholder="server host" ng-model="Ctrl.login.host" required>
                 </div>
+                <span class="text-danger" ng-show="(connect.$submitted || connect.host.$touched) && connect.host.$error.required">
+                    Server host is required field
+                </span>
             </div>
         </div>
 
@@ -63,8 +78,11 @@
                 <label for="" class="col-xs-6">
                     <img ng-src="img/login_qos.png" />Port</label>
                 <div class="col-xs-6">
-                    <input type="text" class="col-xs-6 form-control" placeholder="Port" ng-model="Ctrl.login.port" required>
+                    <input type="text" class="col-xs-6 form-control" name="port" placeholder="Port" ng-model="Ctrl.login.port" required>
                 </div>
+                <span class="text-danger" ng-show="(connect.$submitted || connect.port.$touched) && connect.port.$error.required">
+                    Port is required field
+                </span>
             </div>
         </div>
 
@@ -85,8 +103,11 @@
                 <label for="" class="col-xs-6">
                     <img ng-src="img/login_keep_alive.png" />Keepalive</label>
                 <div class="col-xs-6">
-                    <input type="text" class="col-xs-6 form-control" placeholder="Keepalive" ng-model="Ctrl.login.keepalive" required>
+                    <input type="text" class="col-xs-6 form-control" name="keepalive" placeholder="Keepalive" ng-model="Ctrl.login.keepalive" required>
                 </div>
+                <span class="text-danger" ng-show="(connect.$submitted || connect.keepalive.$touched) && connect.keepalive.$error.required">
+                    Keepalive is required field
+                </span>
             </div>
         </div>
         <div ng-if="Ctrl.protocolType == 1 || Ctrl.protocolType == 2 || Ctrl.protocolType == 5" class="login-row form-group-lg">
@@ -126,10 +147,13 @@
                     <img ng-src="img/login_qos.png" />QoS</label>
                 <div class="col-xs-6">
                     <!-- <input type="text" class="col-xs-6 form-control" placeholder="QoS" ng-model="Ctrl.login.will.qos" required></div> -->
-                    <select class="form-control col-xs-6" ng-model="Ctrl.login.will.qos" required>
+                    <select class="form-control col-xs-6" name="qos" ng-model="Ctrl.login.will.qos" required>
                         <option selected value="{{item}}" ng-repeat="item in [0,1,2]">{{item}}</option>
-                    </select>
+                    </select>                   
                 </div>
+                <span class="text-danger" ng-show="(connect.$submitted || connect.qos.$touched) && connect.qos.$error.required">
+                    QoS is required field
+                </span>
             </div>
         </div>
 
@@ -167,7 +191,7 @@
 
         </div>
 
-        <button class="login-row login-button form-group-lg" type="button" ng-disabled="connect.$invalid" ng-click="Ctrl.connect(Ctrl.login)">
+        <button class="login-row login-button form-group-lg" type="button" ng-click="Ctrl.connect(Ctrl.login)">
             <p>Log In</p>
             <!--<div class="login-formElements clearfix">-->
             <!--<label for="" class="col-xs-6"><img ng-src="" /></label>-->

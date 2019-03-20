@@ -466,6 +466,7 @@ function processConnack(data, id, client) {
                 id: guid()
             });
             dbUser.loadDatabase();
+            dbUser.remove({'clientID': client.userInfo.clientID, 'type.name': client.userInfo.type.name }, { multi: true })
             dbUser.insert(client.userInfo);
         ping(id);
     } 
@@ -566,10 +567,8 @@ function processPubcomp(client, data, message) {
     saveMessage(msg);
 }
 
-function processPublishin(data) {
-   
-    if (!data) return;
-    if (data.qos == 0) {
+function processPublishin(data) {   
+    if (!data) return;  
         db.loadDatabase();
         db.find({
             'subscribtion.topicID': parseInt(data.topic)
@@ -579,8 +578,7 @@ function processPublishin(data) {
                 data.topic = docs[0].subscribtion.topic
                 saveMessage(data);
             }           
-        });
-    }
+        });   
 }
 
 function processPubackout(data, msg) {    
@@ -605,5 +603,6 @@ function processPubcompout(data, msg, client) {
     if (!data) return;
     
     sendData(data, msg.getPacketID(), 'snpubcompout');
-    saveMessage(messages.pullMessage(msg.getPacketID()))    
+    //saveMessage(messages.pullMessage(msg.getPacketID()))   
+    processPublishin(messages.pullMessage(msg.getPacketID()))
 } 

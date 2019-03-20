@@ -1,13 +1,13 @@
 (function() {
     'use strict';
 
-    loginCtrl.$inject = ["dataFactory", "sessionFactory"];
+    loginCtrl.$inject = ["dataFactory", "sessionFactory", "$scope"];
     angular
         .module('mqtt')
         .controller('loginCtrl', loginCtrl)
 
     /** @ngInject */
-    function loginCtrl(dataFactory, sessionFactory) {
+    function loginCtrl(dataFactory, sessionFactory, $scope) {
         var vm = this;
         vm.protocolType = null;
       
@@ -25,11 +25,35 @@
             certificate: null,
             privateKey: null
         };
+        vm.login = {
+            certificate: null,
+            clientID: "123",
+            host: "broker.iotbroker.cloud",
+            isClean: false,
+            keepalive: "10",
+            password: "galina1988",
+            port: "1883",
+            privateKey: null,
+            type: {name: "MQTT", id: 1, $$hashKey: "object:5"},
+            username: "yulian.oifa@mobius-software.com",
+            isClean: false,
+            will: {
+                retain: false
+            },
+           }
         vm.connect = connect;
         
         init();         
 
         function connect(user) {
+            if ($scope.connect.$invalid) {
+                angular.forEach($scope.connect.$error, function (field) {
+                    angular.forEach(field, function(errorField){
+                        errorField.$setTouched();
+                    })
+                });
+                return
+            }
             for(var i = 0; i < vm.types.length; i++) {
                 if(vm.protocolType == vm.types[i].id) {
                     user.type = vm.types[i];
