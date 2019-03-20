@@ -103,11 +103,14 @@
                 <label for="" class="col-xs-6">
                     <img ng-src="img/login_keep_alive.png" />Keepalive</label>
                 <div class="col-xs-6">
-                    <input type="text" class="col-xs-6 form-control" name="keepalive" placeholder="Keepalive" ng-model="Ctrl.login.keepalive" required>
+                    <input type="number" min="0" max="65535" class="col-xs-6 form-control" name="keepalive" placeholder="Keepalive" ng-model="Ctrl.login.keepalive" required>
                 </div>
                 <span class="text-danger" ng-show="(connect.$submitted || connect.keepalive.$touched) && connect.keepalive.$error.required">
                     Keepalive is required field
                 </span>
+                <span class="text-danger" ng-show="(connect.$submitted || connect.keepalive.$touched) && (connect.keepalive.$error.min || connect.keepalive.$error.max)">
+                    0< Keepalive <65535
+                </span>               
             </div>
         </div>
         <div ng-if="Ctrl.protocolType == 1 || Ctrl.protocolType == 2 || Ctrl.protocolType == 5" class="login-row form-group-lg">

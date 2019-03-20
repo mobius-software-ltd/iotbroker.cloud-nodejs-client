@@ -110,6 +110,11 @@ if (cluster.isMaster) {
             res.status(400).send('Invalid request! Parameter "keepalive" mismatch.');
             return;
         }
+        if (req.body.keepalive > 65535 && (req.body.type.id == 1 || req.body.type.id == 2 || req.body.type.id == 5)) {
+            res.status(400).send('Invalid request! Parameter "keepalive" limited to 65535.');
+            return;
+        }
+
         if(req.body.secure && req.body.certificate && req.body.certificate.indexOf('ENCRYPTED') != -1 && !req.body.privateKey) {           
             res.status(400).send('Invalid request! Add "password" to your certificate');
             return;

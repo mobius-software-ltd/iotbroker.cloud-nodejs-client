@@ -419,7 +419,7 @@ function  processSuback(data, msg) {
             },
         }
         subscribtions.push(subscribeData);
-        db.remove({ 'type': 'subscribtion', 'subscribtion.topic': msg.topics[i].topic, 'subscribtion.connectionId': msg.username }, { multi: true });
+        db.remove({ 'type': 'subscribtion', 'subscribtion.topic': msg.topics[i].topic, 'subscribtion.connectionId': msg.username, 'subscribtion.clientID': msg.clientID }, { multi: true });
     }
     db.insert(subscribtions);
 }
