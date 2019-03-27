@@ -24,8 +24,8 @@
             secure: false,
             certificate: null,
             privateKey: null
-        };
-      
+        };   
+       
         vm.connect = connect;
         
         init();         

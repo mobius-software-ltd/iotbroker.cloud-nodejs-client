@@ -108,6 +108,7 @@ function processConnect(msg) {
     
     CLIENT[msg.params.connection.unique] = new coap();   
     CLIENT[msg.params.connection.unique].userInfo = msg.params.connection;
+    CLIENT[msg.params.connection.unique].pingReq = false;
     CLIENT[msg.params.connection.unique].id = msg.params.connection.clientID;
     CLIENT[msg.params.connection.unique].unique = msg.params.connection.unique;
     CLIENT[msg.params.connection.unique].keepalive = msg.params.connection.keepalive;

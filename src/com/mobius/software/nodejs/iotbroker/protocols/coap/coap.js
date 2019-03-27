@@ -196,9 +196,7 @@ function onDataRecieved(data) {
             sendData(encResponse, null, parentEvent);
             break;
 
-        //nonconfirmable here
         case ENUM.CoapTypes.COAP_NONCONFIRMABLE_TYPE:
-            //this.emit('coapackreceived', decoded);
             connectionDone(null, 'coapackreceived', decoded.getToken());
             break;
         case ENUM.CoapTypes.COAP_ACKNOWLEDGMENT_TYPE:
@@ -225,16 +223,15 @@ function onDataRecieved(data) {
 
                 var content = decoded.getPayload();
                 
-                db.loadDatabase();
-                db.find({ type: 'connack', unique: vm.unique }, function (err, docs) {
-                    if (!docs.length) 
-                        db.insert({ type: 'connack', unique: vm.unique, id: guid() });
-                })
-                dbUsersData.loadDatabase();
-                dbUsersData.find({'unique': that.userInfo.unique}, function (err, docs) {
-                    if (!docs.length) 
-                        dbUsersData.insert(that.userInfo);
-                })
+                if (!that.pingReq) {
+                    db.loadDatabase();
+                    db.insert({ type: 'connack', unique: vm.unique, id: guid() });
+              
+                    dbUsersData.loadDatabase();
+                    dbUsersData.remove({ 'username': that.userInfo.username, 'clientID': that.userInfo.clientID, 'type.id': that.userInfo.type.id }, { multi: true });
+                    dbUsersData.insert(that.userInfo);
+                    that.pingReq = true;
+                }
                 processPubackReceived(token, this, messages.pullMessage(token))
             }
             break;
@@ -318,6 +315,7 @@ function processSubackReceive(data, token, client, message) {
             unique: message.unique || client.unique,
         },
     }
+    db.remove({ 'type': 'coapsubscribtion', 'subscribtion.topic': message.topics[0].topic, 'subscribtion.connectionId': message.clientID }, { multi: true });
     db.insert(subscribeData);
 }
 

@@ -5,7 +5,7 @@
 
     <div class="login-row form-group-lg">
         <div class="login-formElements clearfix" >
-            <div class="users-item clearfix" ng-repeat="item in Ctrl.userslist" >
+            <div class="users-item clearfix" ng-repeat="item in Ctrl.userslist | orderBy: 'clientID'" >
                 <div class="account pull-left" title="Connect" data-dismiss="modal" ng-click="Ctrl.connect(item)">
                         <h4>{{item.type.name}}</h4>
                         <span>{{item.clientID}}</span><br>

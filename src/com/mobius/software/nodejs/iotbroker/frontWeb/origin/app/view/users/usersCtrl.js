@@ -17,7 +17,7 @@
 
         function getUserslist() {        
              dataFactory.getUsers().then(function(success) {
-                 vm.userslist = success;                
+                 vm.userslist = success;             
              });
          }
  
