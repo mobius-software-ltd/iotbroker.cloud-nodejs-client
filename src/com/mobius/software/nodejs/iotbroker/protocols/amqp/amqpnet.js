@@ -72,6 +72,7 @@ function createSocket(msg) {
                 };
                 vm.connections[msg.params.connection.unique] = tls.connect(msg.params.connection.port, msg.params.connection.host, options);
             } else {
+                console.log('here')
                 vm.connections[msg.params.connection.unique] = tls.connect(msg.params.connection.port, msg.params.connection.host);
             }
         } else {

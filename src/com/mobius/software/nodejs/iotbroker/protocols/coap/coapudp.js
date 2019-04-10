@@ -148,7 +148,7 @@ function createSocket(msg) {
             }
             try {
                 connections[msg.params.connection.unique] = dtls.connect(options);
-                    connections[msg.params.connection.unique].on('data', function onDataReceived(data) {
+                connections[msg.params.connection.unique].on('data', function onDataReceived(data) {
                         bus.send('coap.datareceived' + unique, {
                             payload: data,
                             clientID: vm.clientID,
@@ -161,10 +161,10 @@ function createSocket(msg) {
         })
     }
 
-    connections[msg.params.connection.unique].clientID = msg.params.connection.clientID;
-    connections[msg.params.connection.unique].unique = msg.params.connection.unique;
-    connections[msg.params.connection.unique].connection = msg.params.connection;
-
+    // connections[msg.params.connection.unique].clientID = msg.params.connection.clientID;
+    // connections[msg.params.connection.unique].unique = msg.params.connection.unique;
+    // connections[msg.params.connection.unique].connection = msg.params.connection;
+    
         bus.send('coap.startping' + unique, {
             clientID: vm.clientID,
             unique: vm.unique
@@ -195,8 +195,10 @@ function sendData(msg) {
                 try {
                     var message = Buffer.from(msg.payload)
                     if (vm.secure) {
+                        if (connections[msg.unique])
                         connections[msg.unique].write(message)
                     } else {
+                        if (connections[msg.unique])
                         connections[msg.unique].send(message, vm.port, vm.host, function (err) {
                         });
                     }
@@ -216,8 +218,10 @@ function sendData(msg) {
     }
     try {
         if (vm.secure) {
+            if (connections[msg.unique])
             connections[msg.unique].write(Buffer.from(msg.payload))
         } else {
+            if (connections[msg.unique])
             connections[msg.unique].send(Buffer.from(msg.payload), vm.port, vm.host, function (err) {
 
             });

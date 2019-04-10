@@ -368,8 +368,8 @@ function processSASLMechanism(mechanisms, channel, headerType, client) {
 	saslInit.setType(headerType);
 	saslInit.setChannel(channel);
 	saslInit.setMechanism(plainMechanism.getValue(), ENUM.AMQPType.SYMBOL_8);
-	var userBytes = Buffer.from(client.username);
-	var passwordBytes = Buffer.from(client.password);
+	var userBytes = Buffer.from(client.username);	
+	var passwordBytes = Buffer.from(client.password);	
 	var challange = Buffer.alloc(userBytes.length + 1 + userBytes.length + 1 + passwordBytes.length);
 	var index = 0;
 	try {
@@ -379,9 +379,9 @@ function processSASLMechanism(mechanisms, channel, headerType, client) {
 		index += challange.write(client.username, index)
 		challange[userBytes.length + 1 + userBytes.length] = 0x00;
 		index += 1;
-		index += challange.write(client.password, index)
+		index += challange.write(client.password, index)		
 		saslInit.setInitialResponse(challange);
-		var result = parser.encode(saslInit)
+		var result = parser.encode(saslInit)		
 	} catch (e) {
 		console.log(e)
 	}
