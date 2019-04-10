@@ -161,14 +161,16 @@ function createSocket(msg) {
         })
     }
 
-    // connections[msg.params.connection.unique].clientID = msg.params.connection.clientID;
-    // connections[msg.params.connection.unique].unique = msg.params.connection.unique;
-    // connections[msg.params.connection.unique].connection = msg.params.connection;
+    connections[msg.params.connection.unique].clientID = msg.params.connection.clientID;
+    connections[msg.params.connection.unique].unique = msg.params.connection.unique;
+    connections[msg.params.connection.unique].connection = msg.params.connection;
     
-        bus.send('coap.startping' + unique, {
-            clientID: vm.clientID,
-            unique: vm.unique
-        });
+	setTimeout(function () {
+		bus.send('coap.startping' + unique, {
+		    clientID: vm.clientID,
+		    unique: vm.unique
+		});
+	},500);
 
         if (!vm.secure) {
             connections[msg.params.connection.unique].on('message', function onDataReceived(data, rinfo) {
@@ -194,7 +196,7 @@ function sendData(msg) {
             callback: function () {
                 try {
                     var message = Buffer.from(msg.payload)
-                    if (vm.secure) {
+		    if (vm.secure) {
                         if (connections[msg.unique])
                         connections[msg.unique].write(message)
                     } else {
@@ -217,8 +219,8 @@ function sendData(msg) {
         }
     }
     try {
-        if (vm.secure) {
-            if (connections[msg.unique])
+	if (vm.secure) {            
+	    if (connections[msg.unique])
             connections[msg.unique].write(Buffer.from(msg.payload))
         } else {
             if (connections[msg.unique])
