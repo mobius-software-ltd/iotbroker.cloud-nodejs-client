@@ -170,7 +170,7 @@ function createSocket(msg) {
 		    clientID: vm.clientID,
 		    unique: vm.unique
 		});
-	},500);
+	},1500);
 
         if (!vm.secure) {
             connections[msg.params.connection.unique].on('message', function onDataReceived(data, rinfo) {

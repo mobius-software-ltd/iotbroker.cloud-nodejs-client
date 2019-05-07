@@ -202,7 +202,7 @@ if (cluster.isMaster) {
                 var tryNum = 0;
                 setTimeout(function () {
                     mqttClient.getData({ type: 'connack', unique: req.body.unique }, res);
-                }, 1000);
+                }, 3000);
                 break;
             case 2:
                 snClient.send(currClient.name + '.connect', {
@@ -210,7 +210,7 @@ if (cluster.isMaster) {
                 });
                 setTimeout(function () {
                     snClient.getData({ type: 'connack', unique: req.body.unique }, res);                   
-                }, 500);
+                }, 3000);
                 break;
             case 3:
                 coapClient.send('coap.connect', {
@@ -219,7 +219,7 @@ if (cluster.isMaster) {
                 });
                 setTimeout(function () {
                     coapClient.getData({ type: 'connack', unique: req.body.unique }, res);
-                }, 1000);
+                }, 3000);
                 break;
             case 4:
                 amqpClient.send(currClient.name + '.connect', {
@@ -229,7 +229,7 @@ if (cluster.isMaster) {
                 var tryNum = 0;
                 setTimeout(function () {
                     amqpClient.getData({ type: 'connack', unique: req.body.unique }, res);
-                }, 1500);
+                }, 3000);
                 //  res.send('Testing ')
                 break;
             case 5:
@@ -240,7 +240,7 @@ if (cluster.isMaster) {
                 var tryNum = 0;
                 setTimeout(function () {
                     wsClient.getData({ type: 'connack', unique: req.body.unique }, res);
-                }, 500);
+                }, 3000);
                 break;
 
         }
