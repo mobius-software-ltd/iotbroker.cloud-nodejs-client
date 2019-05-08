@@ -76,7 +76,7 @@ if (cluster.isMaster) {
 
     app.post('/connect', function onConnect(req, res) {
         db.loadDatabase();
-        db.remove({'clientID': req.body.clientID, 'type.name': req.body.type.name }, { multi: true })
+	//db.remove({'clientID': req.body.clientID, 'type.name': req.body.type.name }, { multi: true })
        // db.insert(req.body);
 
         var currClient = req.body.type;

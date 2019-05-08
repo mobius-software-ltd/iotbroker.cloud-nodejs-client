@@ -51,7 +51,7 @@ if (cluster.isMaster) {
             bus.listen('wss.sendData' + unique, function (msg) { sendData(msg) });
             bus.listen('wss.done' + unique, function (msg) { connectionDone(msg) });
             
-            createSocket(msg);
+   	    createSocket(msg);
         });
 
       
@@ -60,7 +60,7 @@ if (cluster.isMaster) {
 
 function createSocket(msg) {
     try {
-        if (msg.params.connection.secure) {
+	if (msg.params.connection.secure) {
             var urlString = "wss://" + msg.params.connection.host + ":" + msg.params.connection.port + '/ws';
             if (msg.params.connection.certificate) {
                 connections[msg.params.connection.unique] = new WebSocketClient({
@@ -75,11 +75,10 @@ function createSocket(msg) {
             }
         } else {
             var urlString = "ws://" + msg.params.connection.host + ":" + msg.params.connection.port + '/ws';
-            connections[msg.params.connection.unique] = new WebSocketClient()
+            connections[msg.params.connection.unique] = new WebSocketClient();
         }
 
-       
-        connections[msg.params.connection.unique].username = msg.params.connection.username;
+	connections[msg.params.connection.unique].username = msg.params.connection.username;
         connections[msg.params.connection.unique].unique = msg.params.connection.unique;
         connections[msg.params.connection.unique].connection = msg.params.connection;
 
@@ -100,7 +99,7 @@ function createSocket(msg) {
                     console.log("Connection Error: " + error.toString());
                 });
                 connection.on('close', function () {
-                    bus.send('wss.done' + unique, {
+		    bus.send('wss.done' + unique, {
                         // packetID: packetID,
                         username: connection.username,
                         parentEvent: 'wsDisconnect',
@@ -109,7 +108,7 @@ function createSocket(msg) {
                 });
 
                 connection.on('message', function (data) {
-                    bus.send('ws.dataReceived' + unique, {
+		    bus.send('ws.dataReceived' + unique, {
                         payload: data,
                         username: this.username,
                         unique: this.unique
@@ -117,7 +116,7 @@ function createSocket(msg) {
                 });
 
             });
-            connections[msg.params.connection.unique].connect(urlString);
+   	    connections[msg.params.connection.unique].connect(urlString);
         
 
     } catch (e) {
@@ -132,16 +131,10 @@ function sendData(msg) {
         var newTimer = Timer({
             callback: function () {
                 try {
-
-                    if (typeof connections[msg.unique] == 'undefined') {
-                        if (typeof msg.packetID != 'undefined' && typeof timers[msg.unique] != 'undefined') {
-                            timers[msg.unique].releaseTimer(msg.packetID);
-                        }
-
-                        return
-                    }
-                    connections[msg.unique].send(msg.payload);
-
+ 		    if(connections[msg.unique])
+	               connections[msg.unique].send(msg.payload);
+		    else
+                       newTimer.stopTimer();		    
                 } catch (e) {
                     socketEndOnError(e, msg.unique, msg.packetID);                   
                     return;
@@ -157,7 +150,11 @@ function sendData(msg) {
     try {
         if (JSON.parse(msg.payload).packet != 12) {
             if (connections[msg.unique])
+	    {
                 connections[msg.unique].send(msg.payload);
+	 	if (msg.parentEvent == 'wsDisconnect')
+			connectionDone(msg);
+	    }
         }
     } catch (e) {
         socketEndOnError(e, msg.unique, msg.packetID);       
@@ -171,13 +168,15 @@ function connectionDone(msg) {
         timers[msg.unique].releaseTimer(msg.packetID);
 
     if (msg.parentEvent == 'wsDisconnect') {
-        db.loadDatabase();
+	db.loadDatabase();
         db.remove({ type: 'connack', unique: msg.unique })
-        connections[msg.unique].close();
-        delete timers[msg.unique];
-        delete connections[msg.unique];
+
+	delete timers[msg.unique];        
         delete connectionParams[msg.unique];
-    }
+
+	connections[msg.unique].close();        	
+	delete connections[msg.unique];
+    }    
 }
 
 function socketEndOnError(e, unique, packetID) {
@@ -189,7 +188,7 @@ function socketEndOnError(e, unique, packetID) {
         delete timers[unique];
     }
     if (typeof connections[unique] != 'undefined') {
-        connections[unique].end();
+	connections[unique].close();
         delete connections[unique];
     }
     if (typeof connectionParams[unique] != 'undefined')

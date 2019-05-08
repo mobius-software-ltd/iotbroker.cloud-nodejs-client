@@ -133,7 +133,7 @@ function disconnect() {
 }
 
 function subscribe(topics) {
-	try {
+        try {
 		for (var i = 0; i < topics.length; i++) {
 			topics[i].token = vm.tokens[vm.unique].getToken();
 			var currentHandler = topics[i].token;
@@ -154,8 +154,8 @@ function subscribe(topics) {
 			sendData(result, 0, 'amqp.subscribe');
 		}
 	} catch (e) {
-		console.log(e)
-	}
+  		console.log(e)
+	}	
 }
 
 function unsubscribe(data) {
@@ -465,6 +465,7 @@ function processBegin(client, that) {
 				id: guid()
 			});
 			dbUser.loadDatabase();
+			dbUser.remove({'clientID': that.userInfo.clientID, 'type.name': that.userInfo.type.name }, { multi: true })                    
 			dbUser.insert(that.userInfo);
 		// });
 		that.params.type = 'amqp.connection';
@@ -615,7 +616,7 @@ function connectionDone(packetID, parentEvent, payload) {
     });
 }
 
-function processSuback(data, msg, client) {	
+function processSuback(data, msg, client) {
 	if (!data) return;	
 	connectionDone(0, 'amqp.suback', data);
 	var subscribtions = [];
@@ -625,15 +626,15 @@ function processSuback(data, msg, client) {
 	var subscribeData = {
 		type: 'amqp.subscribtion',
 		subscribtion: {
-			topic: msg.topic,
-			qos: msg.qos,
-			connectionId: msg.username || username,
-			clientID: msg.clientID || clientID,
-			token: msg.token
+			topic: data.name,
+			qos: ENUM.QoS.AT_LEAST_ONCE,
+			connectionId: username,
+			clientID: clientID,
+			token: 0
 		},
 	}
 	subscribtions.push(subscribeData);
-	db.remove({ 'type': 'amqp.subscribtion', 'subscribtion.topic': msg.topic }, { multi: true });
+	db.remove({ 'type': 'amqp.subscribtion', 'subscribtion.topic': data.name }, { multi: true });
 	
 	db.insert(subscribtions);
 }
@@ -673,7 +674,7 @@ function processDispositionOUT(data, transfer, qos, topic, client) {
 	var token = transfer.getHandle();
 	var topicName = topic;
 	var id = client.username;
-	//var unique = client.unique;
+        var unique = client.unique;
 	var clientID = client.clientID;
 	db.loadDatabase();
 	db.find({

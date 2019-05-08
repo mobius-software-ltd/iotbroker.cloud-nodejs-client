@@ -40,6 +40,14 @@ const numCPUs = args[0] || require('os').cpus().length;
 
 var connectionParams = {};
 var worker = [];
+
+var connections = {};
+var timers = {};
+var tokens = {};
+var db = new Datastore({ filename: 'data' });
+var CLIENT = {};
+var pingTimeout = {};
+    
 if (cluster.isMaster) {
     if (!module.parent) {
         for (var i = 0; i < numCPUs; i++) {
@@ -50,31 +58,22 @@ if (cluster.isMaster) {
         console.log(`worker ${worker.process.pid} died`);
     });
 } else {
-    var connections = {};
-    var timers = {};
-    var tokens = {};
-    var db = new Datastore({ filename: 'data' });
-    var CLIENT = {};
-    var pingTimeout = {};
-    var unique;
-    var username;
-    var thisClientID;
     setTimeout(function () {
 
         bus.listen('ws.connect', function (msg) {
-            bus.send('wss.newSocket', msg);
+	    bus.send('wss.newSocket', msg);
             db.loadDatabase();
             db.remove({ 'type': 'connection', 'connection.username': msg.params.connection.username }, { multi: true });
             db.insert(msg.params);
 
-            unique = msg.params.connection.unique;
+            var unique = msg.params.connection.unique;
             if (unique) {
                 bus.listen('ws.disconnect' + unique, function (msg) { processDisconnect(msg) });
                 bus.listen('ws.publish' + unique, function (msg) { processPublish(msg) });
                 bus.listen('ws.subscribe' + unique, function (msg) { processSubscribe(msg) });
                 bus.listen('ws.unsubscribe' + unique, function (msg) { processUnsubscribe(msg) });
                 bus.listen('ws.dataReceived' + unique, function (msg) { processDataReceived(msg) });
-                bus.listen('ws.socketOpened' + unique, function (msg) { processSocketOpened(msg)  
+                bus.listen('ws.socketOpened' + unique, function (msg) { processSocketOpened(msg); 
                     CLIENT[msg.params.connection.unique].Connect(msg.params.connection);
                 });
             }
@@ -83,12 +82,7 @@ if (cluster.isMaster) {
 }
 
 function send(a, b) {
-    try {
-          bus.send(a, b);
-    } catch(e) {
-        console.log(e)
-    }
-  
+    bus.send(a, b);    
 }
 
 function publish(a, b) {
@@ -141,8 +135,6 @@ function processUnsubscribe(msg) {
 function processSocketOpened(msg) {
     CLIENT[msg.params.connection.unique] = new ws();
     CLIENT[msg.params.connection.unique].id = msg.params.connection.username;
-    username = msg.params.connection.username;
-    thisClientID = msg.params.connection.clientID;
     CLIENT[msg.params.connection.unique].userInfo = msg.params.connection;
     CLIENT[msg.params.connection.unique].unique = msg.params.connection.unique;
     tokens[msg.params.connection.unique] = new TOKENS();

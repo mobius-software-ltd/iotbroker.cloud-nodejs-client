@@ -47,9 +47,6 @@ var tokens = {};
 var db = new Datastore({ filename: 'data' });
 var CLIENT = {};
 var pingTimeout = {};
-var unique;
-var username;
-var thisClientID;
 
 if (cluster.isMaster) {
     if (!module.parent) {
@@ -63,7 +60,7 @@ if (cluster.isMaster) {
 } else {
     setTimeout(function() {      
         bus.listen('mqtt.connect', function(msg) { connectProcess(msg)
-            unique = msg.params.connection.unique;
+            var unique = msg.params.connection.unique;
             if(unique) {    
                 bus.listen('mqtt.socketOpened' + unique, function(msg) { socketOpenedprocess(msg); });        
                 bus.listen('mqtt.disconnect' + unique, function(msg) {  disconnectProcess(msg); });
@@ -140,9 +137,7 @@ function socketOpenedprocess(msg) {
 
     CLIENT[msg.params.connection.unique] = new mqtt();
     CLIENT[msg.params.connection.unique].id = msg.params.connection.username;
-    username = msg.params.connection.username;
     CLIENT[msg.params.connection.unique].clientID = msg.params.connection.clientID;
-    thisClientID = msg.params.connection.clientID 
     CLIENT[msg.params.connection.unique].unique = msg.params.connection.unique;  
     tokens[msg.params.connection.unique] = new TOKENS();
     CLIENT[msg.params.connection.unique].userInfo = msg.params.connection; 

@@ -160,7 +160,6 @@ function processUnsubscribe(msg) {
 function processPublish(msg) {
     if (typeof vm.CLIENT[msg.unique] == 'undefined') return;
     msg.params.deliveryId = vm.delivery[msg.unique].getToken();
-    msg.params.qos = ENUM.QoS.AT_LEAST_ONCE;
     msg.params.username = msg.username;
 
     vm.CLIENT[msg.unique].id = msg.username;

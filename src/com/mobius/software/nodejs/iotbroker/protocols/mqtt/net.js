@@ -110,7 +110,9 @@ function sendData(msg) {
             callback: function () {
                 try {
                     if(connections[msg.unique])
-                    connections[msg.unique].write(Buffer.from(msg.payload));
+                    	connections[msg.unique].write(Buffer.from(msg.payload));
+		    else
+                       newTimer.stopTimer();
                 } catch (e) {
                     socketEndOnError(e, msg.unique, msg.packetID);                   
                     return;

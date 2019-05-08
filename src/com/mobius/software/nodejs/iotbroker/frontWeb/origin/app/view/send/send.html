@@ -22,17 +22,17 @@
                 </div>
             </div>
         </div>
-        <div class="login-row form-group-lg" ng-hide="Ctrl.sessionData.type.id == 4">
+        <div class="login-row form-group-lg">
             <div class="login-formElements clearfix">
                 <label for="" class="col-xs-6">
                     <img ng-src="img/login_qos.png" />QoS</label>
                 <div class="col-xs-6">
-                    <!-- <input type="text" class="col-xs-6 form-control" placeholder="QoS" ng-model="Ctrl.message.qos"></div> -->
-                    <select ng-hide="Ctrl.sessionData.type.id == 3" class="form-control" ng-model="Ctrl.message.qos" required>
+		    <!-- <input type="text" class="col-xs-6 form-control" placeholder="QoS" ng-model="Ctrl.message.qos"></div> -->
+                    <select ng-hide="Ctrl.sessionData.type.id == 3 || Ctrl.sessionData.type.id == 4" class="form-control" ng-model="Ctrl.message.qos" required>
                         <option selected value="{{item}}" ng-repeat="item in [0,1,2]">{{item}}</option>
                     </select>
 
-                    <select ng-show="Ctrl.sessionData.type.id == 3" class="form-control" ng-model="Ctrl.message.qos" required>
+                    <select ng-show="Ctrl.sessionData.type.id == 3 || Ctrl.sessionData.type.id == 4" class="form-control" ng-model="Ctrl.message.qos" required>
                         <option selected value="{{item}}" ng-repeat="item in [0,1]">{{item}}</option>
                     </select>
 
@@ -40,7 +40,7 @@
             </div>
         </div>
 
-        <div class="login-row form-group-lg" ng-hide="Ctrl.sessionData.type.id == 3">
+        <div class="login-row form-group-lg" ng-hide="Ctrl.sessionData.type.id == 3 || Ctrl.sessionData.type.id == 4">
             <div class="login-formElements clearfix">
                 <label for="" class="col-xs-6">
                     <img ng-src="img/login_retain.png" />Retain</label>
@@ -51,7 +51,7 @@
                 </label>
             </div>
         </div>
-        <div class="login-row form-group-lg" ng-hide="Ctrl.sessionData.type.id == 3">
+        <div class="login-row form-group-lg" ng-hide="Ctrl.sessionData.type.id == 3 || Ctrl.sessionData.type.id == 4">
             <div class="login-formElements clearfix">
                 <label for="" class="col-xs-6">
                     <img ng-src="img/login_retain.png" />Duplicate</label>

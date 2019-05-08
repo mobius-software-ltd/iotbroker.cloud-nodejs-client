@@ -7,7 +7,7 @@
     <div class="form-group-lg" ng-hide="Ctrl.sessionData.type.id == 4">
         <div class="clearfix">
             <!-- <input type="text" class="form-control" placeholder="qos" ng-model="Ctrl.newItem.qos"> -->
-            <select ng-hide="Ctrl.sessionData.type.id == 3" class="form-control" ng-model="Ctrl.newItem.qos" required>
+            <select ng-hide="Ctrl.sessionData.type.id == 3 || Ctrl.sessionData.type.id == 4" class="form-control" ng-model="Ctrl.newItem.qos" required>
                 <option selected value="{{item}}" ng-repeat="item in [0,1,2]">{{item}}</option>                       
             </select>
 
@@ -15,6 +15,9 @@
                 <option selected value="{{item}}" ng-repeat="item in [0,1]">{{item}}</option>                       
             </select>
 
+	    <select  ng-show="Ctrl.sessionData.type.id == 4" class="form-control" ng-model="Ctrl.newItem.qos" required>
+                <option selected value="{{item}}" ng-repeat="item in [1]">{{item}}</option>                       
+            </select>
         </div>
     </div>    
     <div class="topics-addButton" ng-click="Ctrl.addItem()">

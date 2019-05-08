@@ -181,7 +181,7 @@ function connect(params) {
 
     if(params.isClean) {
         db.loadDatabase()
-        db.remove({ 'type': 'subscribtion', 'subscribtion.clientID': params.clientID }, { multi: true });
+        db.remove({ 'type': 'subscribtion', 'subscribtion.clientID': params.clientID, 'subscribtion.connectionId': params.username }, { multi: true });
     }
     
     if (!!params.will) {
@@ -356,7 +356,7 @@ function processConnack(data, unique, username, client) {
                     id: guid()
                 });
                 dbUser.loadDatabase();
-                dbUser.remove({'clientID': client.userInfo.clientID, 'type.name': client.userInfo.type.name }, { multi: true })
+		dbUser.remove({'clientID': client.userInfo.clientID, 'type.name': client.userInfo.type.name }, { multi: true })
                 dbUser.insert(client.userInfo);
             ping();
         } 
@@ -369,9 +369,8 @@ function processConnect(payload, packetID, parentEvent) {
 function processDisconnect(payload, packetID, parentEvent) {   
         sendData(payload, packetID, parentEvent);
         connectionDone(packetID, parentEvent);
-       
         delete CLIENT[unique];
-        delete tokens[unique];
+        delete tokens[unique];	
 }
 
 function processPing(payload, packetID, parentEvent) {
@@ -429,7 +428,7 @@ function processUnsuback(data, msg) {
        
     db.loadDatabase();
     for (var i = 0; i < msg.length; i++) {
-        db.remove({ 'type': 'subscribtion', 'subscribtion.topic': msg[i] }, { multi: true });
+        db.remove({ 'type': 'subscribtion', 'subscribtion.topic': msg[i], 'subscribtion.connectionId': username, 'subscribtion.clientID': thisClientID }, { multi: true });
     }
 }
 

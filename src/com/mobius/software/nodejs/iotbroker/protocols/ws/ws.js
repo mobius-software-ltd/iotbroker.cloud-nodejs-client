@@ -54,6 +54,7 @@ var bus = require('servicebus').bus({
     queuesFile: `.queues.ws.${process.pid}`
 });
 var guid = require('./lib/guid');
+var CLIENT = {};
 var tokens = {};
 var pingTimeout = {};
 var unique;
@@ -188,6 +189,12 @@ function connect(params) {
         passwordFlag: true,
         will: null
     }
+
+    if(params.isClean) {
+        db.loadDatabase()
+        db.remove({ 'type': 'wssubscribtion', 'subscribtion.clientID': params.clientID, 'subscribtion.connectionId': params.username  }, { multi: true });
+    }
+
     if (params.will)
         if (params.will.topic && params.will.content) {
             connect.will = {
@@ -361,11 +368,9 @@ function publishDisconnect() {
 }
 
 function processDisconnect(data, id) {
-    sendData(data, id, 'wsDisconnect');
-    connectionDone(id, 'wsDisconnect');
-
-    delete CLIENT[this.unique];
-    delete tokens[unique];
+    sendData(data, id, 'wsDisconnect');    
+    delete CLIENT[unique];
+    delete tokens[unique];    
 }
 
 function processConnack(data, client) {
@@ -381,7 +386,8 @@ function processConnack(data, client) {
                 id: guid()
             });
             dbUser.loadDatabase();
-			dbUser.insert(client.userInfo);
+            dbUser.remove({'clientID': client.userInfo.clientID, 'type.name': client.userInfo.type.name }, { multi: true })                    
+	    dbUser.insert(client.userInfo);
         ping();
     } 
 }
@@ -426,7 +432,7 @@ function processSuback(data, msg) {
                 },
             }
             subscribtions.push(subscribeData);
-            db.remove({ 'type': 'subscribtion', 'subscribtion.topic': msg.topics[i].topic }, { multi: true });
+            db.remove({ 'type': 'wssubscribtion', 'subscribtion.topic': msg.topics[i].topic, 'subscribtion.connectionId': msg.username, 'subscribtion.clientID': msg.clientID }, { multi: true });
         }
     db.insert(subscribtions);
 }
@@ -435,7 +441,7 @@ function processUnsuback(packetID, msg) {
     connectionDone(packetID, 'wsUnsuback');
     db.loadDatabase();
    // tokens[unique].releaseToken(packetID);
-    db.remove({ 'type': 'wssubscribtion', 'subscribtion.topic': msg }, { multi: true });
+    db.remove({ 'type': 'wssubscribtion', 'subscribtion.topic': msg, 'subscribtion.connectionId': username, 'subscribtion.clientID': thisClientID }, { multi: true });
 }
 
 function processPubackout(data, msg) {

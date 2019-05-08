@@ -228,6 +228,7 @@ function onDataRecieved(data) {
                     db.insert({ type: 'connack', unique: vm.unique, id: guid() });
               
                     dbUsersData.loadDatabase();
+		    dbUsersData.remove({'clientID': that.userInfo.clientID, 'type.name': that.userInfo.type.name }, { multi: true })
                     dbUsersData.remove({ 'username': that.userInfo.username, 'clientID': that.userInfo.clientID, 'type.id': that.userInfo.type.id }, { multi: true });
                     dbUsersData.insert(that.userInfo);
                     that.pingReq = true;
