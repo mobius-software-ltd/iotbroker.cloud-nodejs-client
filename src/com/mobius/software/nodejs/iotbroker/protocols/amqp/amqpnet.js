@@ -133,7 +133,7 @@ function connectionDone(msg) {
     vm.timers[msg.unique].releaseTimer(msg.packetID);
 
     if (msg.parentEvent == 'amqp.disconnect') {
-        db.loadDatabase();
+	db.loadDatabase();
         db.remove({ type: 'connack', unique: msg.unique })
         vm.connections[msg.unique].end();
         delete vm.connections[msg.unique];

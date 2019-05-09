@@ -140,17 +140,19 @@ function processUnsubscribe(msg) {
     if (typeof vm.CLIENT[msg.unique] == 'undefined') return;
         
     db.loadDatabase();
-    var result;
+    var result; 
     db.find({
         type: 'amqp.subscribtion',
-        'subscribtion.topic': msg.params[0].topic
+        'subscribtion.topic': msg.params[0].topic, 
+	'subscribtion.connectionId': msg.username, 
+	'subscribtion.clientID':msg.params.clientID
     }, function (err, docs) {
         if (docs) {
             result = docs
         }
     });
     if (result) {
-        for (var i = 0; i < msg.params.length; i++) {
+	for (var i = 0; i < msg.params.length; i++) {	    
             msg.params[i].token = result[0].subscribtion.token
         }
     }

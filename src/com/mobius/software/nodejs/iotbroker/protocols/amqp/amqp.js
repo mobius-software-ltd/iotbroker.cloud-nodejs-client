@@ -283,7 +283,7 @@ function onDataRecieved(data, client) {
 
 		case ENUM.HeaderCode.DETACH:
 			var handle = decoded.getHandle();
-			processUnsuback(handle)
+			processUnsuback(handle, this)
 			break;
 
 		case ENUM.HeaderCode.DISPOSITION:
@@ -446,7 +446,7 @@ function processOpen(timeout, client) {
 	sendData(result, 1, 'amqp.begin');
 	db.loadDatabase();
 	if (client.isClean) {
-		db.remove({ 'type': 'amqp.subscribtion', 'subscribtion.connectionId': client.username, 'subscribtion.clientID':client.clientID }, { multi: true });
+		db.remove({ 'type': 'amqp.subscribtion', 'subscribtion.connectionId': client.id, 'subscribtion.clientID':client.clientID }, { multi: true });
 }
 
 }
@@ -455,7 +455,7 @@ function processBegin(client, that) {
 	try {
 		if (!that) return;
 		var id = client.username;
-		clearInterval(vm.connectTimeout)
+		clearTimeout(vm.connectTimeout)
 		db.loadDatabase();
 		// db.remove({ type: 'amqp.connack' }, { multi: true }, function (err, docs) {
 			db.insert({
@@ -630,20 +630,22 @@ function processSuback(data, msg, client) {
 			qos: ENUM.QoS.AT_LEAST_ONCE,
 			connectionId: username,
 			clientID: clientID,
-			token: 0
+			token: msg.token
 		},
 	}
 	subscribtions.push(subscribeData);
-	db.remove({ 'type': 'amqp.subscribtion', 'subscribtion.topic': data.name }, { multi: true });
+	db.remove({ 'type': 'amqp.subscribtion', 'subscribtion.topic': data.name , 'subscribtion.connectionId': username, 'subscribtion.clientID': clientID}, { multi: true });
 	
 	db.insert(subscribtions);
 }
 
-function processUnsuback(token) {
+function processUnsuback(token, client) {
 	if (!token) return;
 	connectionDone(token, 'amqp.unsuback', null);
+	var clientID = client.clientID;
+	var username = client.id;
 	db.loadDatabase();
-	db.remove({ 'type': 'amqp.subscribtion', 'subscribtion.token': token }, { multi: true });
+	db.remove({ 'type': 'amqp.subscribtion', 'subscribtion.token': token , 'subscribtion.connectionId': username, 'subscribtion.clientID': clientID }, { multi: true });
 }
 
 function processDispositionIN(data, token, message) {	
@@ -678,7 +680,7 @@ function processDispositionOUT(data, transfer, qos, topic, client) {
 	var clientID = client.clientID;
 	db.loadDatabase();
 	db.find({
-		type: 'amqp.subscribtion', 'subscribtion.topic': topic
+		type: 'amqp.subscribtion', 'subscribtion.topic': topic, 'subscribtion.connectionId': id, 'subscribtion.clientID': clientID
 	}, function (err, docs) {
 		if (docs.length) {
 			topicName = docs[0].subscribtion.topic
@@ -686,7 +688,7 @@ function processDispositionOUT(data, transfer, qos, topic, client) {
 
 	});
 	db.find({
-		type: 'amqp.subscribtion', 'subscribtion.token': token
+		type: 'amqp.subscribtion', 'subscribtion.token': token, 'subscribtion.connectionId': id, 'subscribtion.clientID': clientID
 	}, function (err, docs) {
 		if (docs.length) {
 			topicName = docs[0].subscribtion.topic
