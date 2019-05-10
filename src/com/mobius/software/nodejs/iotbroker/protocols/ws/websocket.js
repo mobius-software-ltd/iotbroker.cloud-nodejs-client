@@ -131,8 +131,9 @@ function sendData(msg) {
         var newTimer = Timer({
             callback: function () {
                 try {
- 		    if(connections[msg.unique])
-	               connections[msg.unique].send(msg.payload);
+ 		    if(connections[msg.unique]) {
+                       connections[msg.unique].send(msg.payload);
+		    }
 		    else
                        newTimer.stopTimer();		    
                 } catch (e) {
@@ -143,8 +144,7 @@ function sendData(msg) {
             interval: connections[msg.unique].connection.keepalive * 1000
         });
         if (msg.packetID) {
-
-            timers[msg.unique].setTimer(msg.packetID, newTimer);
+   	    timers[msg.unique].setTimer(msg.packetID, newTimer);
         }
     }
     try {
@@ -152,7 +152,7 @@ function sendData(msg) {
             if (connections[msg.unique])
 	    {
                 connections[msg.unique].send(msg.payload);
-	 	if (msg.parentEvent == 'wsDisconnect')
+	 	if (msg.parentEvent == 'wsDisconnect' || msg.parentEvent == 'wsPublish')
 			connectionDone(msg);
 	    }
         }
@@ -164,8 +164,9 @@ function sendData(msg) {
 
 function connectionDone(msg) {
     if (typeof timers[msg.unique] == 'undefined') return;
-    if (msg.packetID)
-        timers[msg.unique].releaseTimer(msg.packetID);
+    if (msg.packetID) {
+	timers[msg.unique].releaseTimer(msg.packetID);
+    }
 
     if (msg.parentEvent == 'wsDisconnect') {
 	db.loadDatabase();

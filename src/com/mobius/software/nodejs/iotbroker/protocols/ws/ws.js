@@ -110,7 +110,8 @@ function disconnect(params) {
     var disconnect = {
         packet: 14
     }
-    processDisconnect(JSON.stringify(disconnect), packetID)
+    clearTimeout(pingTimeout);
+    processDisconnect(JSON.stringify(disconnect), packetID);    
 }
 
 function subscribe(params) {
@@ -209,7 +210,7 @@ function connect(params) {
 
 
     var strConnect = JSON.stringify(connect);
-    sendData(strConnect, 1, 'wsConnect');
+    sendData(strConnect, -1, 'wsConnect');
 
 }
 
@@ -302,7 +303,7 @@ function onDataRecieved(data) {
                 if (JSON.stringify(pubrec))
                     sendData(JSON.stringify(pubrec), message.packetID, 'wsPubrecOut');
 
-                messages.pushMessage(id, message)
+		messages.pushMessage(id, message)
                 break;
             default:
                 break;
@@ -370,13 +371,13 @@ function publishDisconnect() {
 function processDisconnect(data, id) {
     sendData(data, id, 'wsDisconnect');    
     delete CLIENT[unique];
-    delete tokens[unique];    
+    delete tokens[unique];        
 }
 
 function processConnack(data, client) {
     var that = this;
 
-    connectionDone(1, 'wsConnack');
+    connectionDone(-1, 'wsConnack');
     db.loadDatabase();
     if (data.payload.data.returnCode == ENUM.ConnackCode.ACCEPTED) {
             db.insert({
@@ -389,12 +390,11 @@ function processConnack(data, client) {
             dbUser.remove({'clientID': client.userInfo.clientID, 'type.name': client.userInfo.type.name }, { multi: true })                    
 	    dbUser.insert(client.userInfo);
         ping();
-    } 
+    }
 }
 
 function processPublish(data, msg, packetID, parent) {
-    sendData(data, packetID, parent);
-    connectionDone(packetID, 'wsPublish');
+    sendData(data, packetID, parent);    
     if (msg.qos == 0) {
         msg.direction = 'out';
         saveMessage(msg);
