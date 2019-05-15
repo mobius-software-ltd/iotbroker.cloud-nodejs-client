@@ -339,7 +339,7 @@ function onDataRecieved(data, client) {
 			var desposition = processTransfer(transfer.getData(), transfer.getHandle(), transfer.getSettled(), transfer.getDeliveryId());			
 			var topic = ''
 			if(vm.usedOutgoingHandles[transfer.getHandle()])
-			 topic = vm.usedOutgoingHandles[transfer.getHandle()]
+			    topic = vm.usedOutgoingHandles[transfer.getHandle()]
 
 			var qos = transfer.getSettled() ? ENUM.QoS.AT_MOST_ONCE : ENUM.QoS.AT_LEAST_ONCE;
 
@@ -545,9 +545,13 @@ function processAttach(attach, obj) {
 				}
 			}
 			}
-		} else {
+		} else {			
 			try {
-				processSuback(attach, vm.subscribtions.pullMessage(handle), self)
+				var msg=vm.subscribtions.pullMessage(handle);
+				if(msg)
+  				   processSuback(attach, msg, self)
+				else
+				   processSuback(attach, attach, self)
 			}
 			catch (e) {
 				console.log("An error occured while saving topic, " + e);
